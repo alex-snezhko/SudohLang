@@ -1,0 +1,37 @@
+function List() returns map
+	list = {
+		"head": null
+		"size": 0
+	}
+	return list
+
+
+function addNode(list, num: number)
+	node = {
+		"val": val,
+		"next": null
+	}
+
+	if list["size"] is 0
+		list["head"] = node
+	else
+		curr = list["head"]
+		while curr["next"] is not null
+			curr = curr["next"]
+
+		curr["next"] = node
+
+function printList(list)
+	curr = list["head"]
+	print("[")
+	while curr is not null
+		print(curr["val"] + ",")
+		curr = curr["next"]
+
+	printLine("]")
+
+list = List()
+addNode(list, 1)
+addNode(list, 2)
+addNode(list, 3)
+printList(list)
