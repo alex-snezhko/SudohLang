@@ -223,11 +223,11 @@ bool functionDef(const vector<string> &tokens)
 template <typename T>
 struct Lexem
 {
-    string accept;
+    /*string accept;
     void (*onAccept)(T &);
 
     Lexem(string str) : accept(str), onAccept(nullptr) {}
-    Lexem(string str, void (*func)(T &)) : accept(str), onAccept(func) {}
+    Lexem(string str, void (*func)(T &)) : accept(str), onAccept(func) {}*/
 };
 
 struct Rule

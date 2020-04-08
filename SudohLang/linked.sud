@@ -1,4 +1,4 @@
-function List() returns map
+function List()
 	list = {
 		"head": null
 		"size": 0
@@ -6,17 +6,17 @@ function List() returns map
 	return list
 
 
-function addNode(list, num: number)
+function addNode(list, num)
 	node = {
 		"val": val,
 		"next": null
 	}
 
-	if list["size"] is 0
+	if list["size"] is 0 then
 		list["head"] = node
 	else
 		curr = list["head"]
-		while curr["next"] is not null
+		while curr["next"] is not null do
 			curr = curr["next"]
 
 		curr["next"] = node
@@ -24,7 +24,7 @@ function addNode(list, num: number)
 function printList(list)
 	curr = list["head"]
 	print("[")
-	while curr is not null
+	until curr is null do
 		print(curr["val"] + ",")
 		curr = curr["next"]
 

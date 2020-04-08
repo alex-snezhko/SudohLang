@@ -1,55 +1,66 @@
 #include <iostream>
-#include <string>
-#include <vector>
-#include <map>
+#include "variable.h"
 
-using namespace std;
-
-struct Variable
+// stdLib
+Variable _print(const Variable& _str)
 {
-    enum Type { numInt, numFloat, boolean, str, list, mapT, null };
+    return nullptr;
+}
 
-    union Value
+// end stdLib
+
+Variable _List()
+{
+    Variable _list = Map();
+    _list["head"] = nullptr;
+    _list["size"] = Number(0);
+    return _list;
+}
+
+Variable _addNode(Variable& _list, Variable& _num)
+{
+    Variable _node = Map();
+    _node["val"] = _num;
+    _node["next"] = nullptr;
+
+    if (_list["size"] == Number(0))
     {
-        int intVal;
-        double &floatVal;
-        bool boolVal;
-        string stringVal;
-        vector<Value> listVal;
-        map<Value, Value> mapVal;
+        _list["head"] = _node;
+    }
+    else
+    {
+        Variable _curr = _list["head"];
+        while (_curr["next"] != nullptr)
+        {
+            _curr = _curr["next"];
+        }
 
-        Value() {}
-        Value(int val) : intVal(val) {}
-        Value(double val) : floatVal(val) {}
-        Value(bool val) : boolVal(val) {}
-        Value(string val) : stringVal(val) {}
-        Value(vector<Value> val) : listVal(val) {}
-        Value(map<Value, Value> val) : mapVal(val) {}
-        ~Value() {}
-    };
-
-    Type type;
-    Value value;
-
-    Variable(const Variable &other) : type(other.type) { memcpy(&value, &other.value, sizeof(Value)); }
-
-    Variable(int val) : type(numInt), value(val) {}
-    Variable(double val) : type(numFloat), value(val) {}
-    Variable(bool val) : type(boolean), value(val) {}
-    Variable(string val) : type(str), value(val) {}
-    Variable(vector<Value> val) : type(list), value(val) {}
-    Variable(map<Value, Value> val) : type(mapT), value(val) {}
-    Variable(nullptr_t n) : type(null) {}
-};
-
-map<Variable, Variable> _List()
-{
-    map<Variable, Variable> _list;
-    _list[Variable("head")] = Variable(nullptr);
-    _list[Variable("head")] = Variable(nullptr);
+        _curr["next"] = _node;
+    }
+    return nullptr;
 }
 
-int main()
+Variable _printList(Variable& _list)
 {
-    
+    Variable _curr = _list["head"];
+    std::cout << "[";
+    while (_curr != nullptr)
+    {
+        _print(_curr["val"] + ",");
+        _curr = _curr["next"];
+    }
+    std::cout << "]" << std::endl;
+    return nullptr;
 }
+
+/*int main()
+{
+    Variable _list = _List();
+    Variable __tmp0 = Number(1);
+    _addNode(_list, __tmp0);
+    Variable __tmp1 = Number(2);
+    _addNode(_list, __tmp1);
+    Variable __tmp2 = Number(3);
+    _addNode(_list, __tmp2);
+    _printList(_list);
+}*/

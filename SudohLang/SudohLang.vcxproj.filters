@@ -26,4 +26,9 @@
     <None Include="example.sud" />
     <None Include="linked.sud" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="variable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>
