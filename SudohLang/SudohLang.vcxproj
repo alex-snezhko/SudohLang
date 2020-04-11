@@ -127,6 +127,7 @@
   <ItemGroup>
     <ClCompile Include="linked.cpp" />
     <ClCompile Include="sudohc.cpp" />
+    <ClCompile Include="variable.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.sud" />

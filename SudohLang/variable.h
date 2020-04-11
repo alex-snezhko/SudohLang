@@ -1,53 +1,11 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <map>
-#include <variant>
+#include <unordered_map>
+#include <stdexcept>
 
-/*struct Var;
-typedef std::vector<Var> List;
-typedef std::map<Var, Var, std::less<Var>, std::allocator<std::pair<Var, Var>>> Map;*/
-
-/*struct VarD
-{
-    enum { number, boolean, str, list, mapT, null } type;
-
-    Val* data;
-
-    VarD() {}
-    VarD(const VarD& other) {}
-    VarD operator+(const VarD& other) const {}
-    VarD operator-(const VarD& other) const {}
-    VarD operator*(const VarD& other) const {}
-    VarD operator/(const VarD& other) const {}
-    VarD operator=(const VarD& other) {}
-};*/
-
-
-/*struct Var
-{
-    enum { number, boolean, str, list, mapT, null } type;
-
-    union ASDF
-    {
-        Number numVal;
-        bool boolVal;
-        std::string stringVal;
-        List listVal;
-        Map mapVal;
-
-        void doStuff() {}
-    };
-
-    Var() {}
-    Var(const Var& other) {}
-    Var operator+(const Var& other) const {}
-    Var operator-(const Var& other) const {}
-    Var operator*(const Var& other) const {}
-    Var operator/(const Var& other) const {}
-    Var operator=(const Var& other) {}
-};*/
-
+// to prevent implicit conversion of char* values to bool
+enum class Bool { t, f };
 
 struct Number
 {
@@ -112,52 +70,90 @@ struct Number
     }
 };
 
-
 struct Variable;
+
+struct Hash
+{
+    size_t operator()(const Variable& v) const
+    {
+        return 0;
+    }
+};
 typedef std::vector<Variable> List;
-typedef std::map<Variable, Variable, std::less<Variable>, std::allocator<std::pair<Variable, Variable>>> Map;
+typedef std::unordered_map<Variable, Variable, Hash/*, Cmp, std::less<const Variable&>, std::allocator<std::pair<Variable, Variable>>*/> Map;
+
+struct Ref
+{
+    int refCount;
+    Ref(int r) : refCount(r) {}
+};
+
+struct ListRef : public Ref
+{
+    List listVal;
+    ListRef(List l) : Ref(1), listVal(l) {}
+};
+
+struct MapRef : public Ref
+{
+    Map mapVal;
+    MapRef(Map m) : Ref(1), mapVal(m) {}
+};
+
+bool operator<(const Variable& v1, const Variable& v2);
+
+bool operator==(const Variable& v1, const Variable& v2);
+
+bool operator!=(const Variable& v1, const Variable& v2);
 
 struct Variable
 {
-    enum { number, boolean, str, list, mapT, ref, null } type;
+    enum { number, boolean, str, list, mapT, null } type;
 
-    union
+    union Val
     {
         Number numVal;
         bool boolVal;
-        std::string stringVal;
-        List listVal;
-        Map mapVal;
-        Variable* varRef;
-    };
+        std::string* stringRef;
+        Ref* sharedRef;
 
-    Variable(const Variable& other) : type(other.type)
+        Val(Number val) : numVal(val) {}
+        Val(bool val) : boolVal(val) {}
+        Val(std::string val) : stringRef(new std::string(val)) {}
+        Val(Ref* val) : sharedRef(val) {}
+    } val;
+
+    Variable(const Variable& other) : type(other.type), val(other.val)
     {
-        switch (other.type)
+        if (other.type == str)
         {
-        case number:
-            numVal = other.numVal;
-            break;
-        case boolean:
-            boolVal = other.boolVal;
-            break;
-        case str:
-            stringVal = other.stringVal;
-            break;
-        default:
-            varRef = (Variable*)&other;
-            type = ref;
-            break;
+            val.stringRef = new std::string(*other.val.stringRef);
         }
     }
-    ~Variable() {}
 
-    Variable(Number val) : type(number), numVal(val) {}
-    Variable(bool val) : type(boolean), boolVal(val) {}
-    Variable(std::string val) : type(str), stringVal(val) {}
-    Variable(List val) : type(list), listVal(val) {}
-    Variable(Map val) : type(mapT), mapVal(val) {}
-    Variable(nullptr_t n) {}
+    void freeMem()
+    {
+        if (type == list || type == mapT)
+        {
+            if (--val.sharedRef->refCount == 0)
+            {
+                delete val.sharedRef;
+            }
+        }
+        if (type == str)
+        {
+            delete val.stringRef;
+        }
+    }
+
+    ~Variable() { freeMem(); }
+
+    Variable() : type(null), val(false) {}
+    Variable(Number n) : type(number), val(n) {}
+    Variable(Bool b) : type(boolean), val(b == Bool::t) {}
+    Variable(const char* s) : type(str), val(std::string(s)) {}
+    Variable(List l) : type(list), val(new ListRef(l)) {}
+    Variable(Map m) : type(mapT), val(new MapRef(m)) {}
 
     Variable operator+(const Variable& other)
     {
@@ -168,7 +164,7 @@ struct Variable
             {
                 throw std::exception();
             }
-            return numVal + other.numVal;
+            //return numVal + other.numVal;
         case Variable::str:
             break;
         case Variable::list:
@@ -177,17 +173,40 @@ struct Variable
             throw std::exception();
             break;
         }
+        return nullptr;
     }
 
     Variable& operator=(const Variable& other)
     {
+        if (this != &other)
+        {
+            freeMem();
+            type = other.type;
+            switch (other.type)
+            {
+            case number:
+                val.numVal = other.val.numVal;
+                break;
+            case boolean:
+                val.boolVal = other.val.boolVal;
+                break;
+            case str:
+                val.boolVal = other.val.boolVal;
+                break;
+            case list:
+            case mapT:
+                val.sharedRef = other.val.sharedRef;
+                val.sharedRef->refCount++;
+                break;
+            }
+        }
         return *this;
     }
 
-    bool operator<(const Variable& other) const
+    /*bool operator<(const Variable& other) const
     {
         return true;
-    }
+    }*/
 
     bool operator>(const Variable& other) const
     {
@@ -204,68 +223,41 @@ struct Variable
         return true;
     }
 
-    Variable& operator[](const Variable index)
+    Variable& operator[](const Variable& index)
     {
         switch (type)
         {
         case str:
+        {
+            if (index.type != number)
             {
-                if (index.type != number)
-                {
-                    throw std::exception();
-                }
-                Variable st = std::string(1, stringVal[index.numVal.intVal()]);
-                return st; // Sudoh strings immutable; trying to set value of character in string won't even compile
+                throw std::exception();
             }
+            const char c[2]{ (*val.stringRef)[index.val.numVal.intVal()], '\0' };
+            Variable st = c;
+            return st; // Sudoh strings immutable; trying to set value of character in string won't even compile
+        }
         case list:
             break;
         case mapT:
-            break;
+        {
+            Map& m = ((MapRef*)(val.sharedRef))->mapVal;
+            Variable& a = m[index];
+            /*try
+            {
+                auto a = m.at(index);
+            }
+            catch (std::out_of_range&)
+            {
+                m.
+            }*/
+            return a;
+        }
         default:
             throw std::exception();
-        }
-    }
-
-    bool operator==(Variable other)
-    {
-        if (other.type == null)
-        {
-            return type == null;
-        }
-
-        if (other.type != type)
-        {
-            throw std::exception();
-        }
-
-        switch (type)
-        {
-        case number:
-            //return numVal == other.numVal;
-        case boolean:
-            //return boolVal == other.boolVal;
-        case str:
-            //return stringVal == other.stringVal;
-        case list:
-            //return value.listVal == other.value.listVal;
-        case mapT:
-            //return value.mapVal == other.value.mapVal;
-        default:
-            break;
-        }
-    }
-
-    bool operator!=(const Variable& other)
-    {
-        return !operator==(other);
-    }
-
-    operator Variable() const
-    {
-        if (type == ref)
-        {
-            return *varRef;
         }
         return *this;
     }
 };
+
+

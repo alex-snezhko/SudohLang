@@ -8,7 +8,7 @@ function List()
 
 function addNode(list, num)
 	node = {
-		"val": val,
+		"val": num,
 		"next": null
 	}
 

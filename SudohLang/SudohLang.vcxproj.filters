@@ -21,6 +21,9 @@
     <ClCompile Include="linked.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="variable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="example.sud" />

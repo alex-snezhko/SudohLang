@@ -282,7 +282,7 @@ void analyze(ifstream& file)
 
 }
 
-int main(int argc, char** argv)
+/*int main(int argc, char** argv)
 {
     if (argc != 2)
     {
@@ -336,4 +336,4 @@ int main(int argc, char** argv)
     transpiled += "}\n";
     file.close();
     return 0;
-}
+}*/

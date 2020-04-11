@@ -1,27 +1,50 @@
 #include <iostream>
 #include "variable.h"
+#define true Bool::t
+#define false Bool::f
 
 // stdLib
-Variable _print(const Variable& _str)
+std::ostream& operator<<(std::ostream& os, const Variable& var)
 {
-    return nullptr;
+    switch (var.type)
+    {
+    case Variable::number:
+        //os << var.numVal;
+        break;
+    case Variable::str:
+        break;
+    case Variable::boolean:
+        break;
+    case Variable::list:
+        break;
+    case Variable::mapT:
+        break;
+    }
+    return os;
 }
 
+Variable _print(const Variable& _str)
+{
+    std::cout << _str;
+    return nullptr;
+}
 // end stdLib
 
-Variable _List()
+/*Variable _List()
 {
-    Variable _list = Map();
-    _list["head"] = nullptr;
-    _list["size"] = Number(0);
+    Variable _list = new Map {
+        { _list["head"], nullptr },
+        { _list["size"], Number(0) }
+    };
     return _list;
 }
 
 Variable _addNode(Variable& _list, Variable& _num)
 {
-    Variable _node = Map();
-    _node["val"] = _num;
-    _node["next"] = nullptr;
+    Variable _node = new Map {
+        { Variable("val"), _num },
+        { Variable("next"), nullptr }
+    };
 
     if (_list["size"] == Number(0))
     {
@@ -43,24 +66,26 @@ Variable _addNode(Variable& _list, Variable& _num)
 Variable _printList(Variable& _list)
 {
     Variable _curr = _list["head"];
-    std::cout << "[";
+    _print("[");
     while (_curr != nullptr)
     {
         _print(_curr["val"] + ",");
         _curr = _curr["next"];
     }
-    std::cout << "]" << std::endl;
+    _print("]\n");
     return nullptr;
-}
+}*/
 
-/*int main()
+int main()
 {
-    Variable _list = _List();
+    /*Variable _list = _List();
     Variable __tmp0 = Number(1);
     _addNode(_list, __tmp0);
     Variable __tmp1 = Number(2);
     _addNode(_list, __tmp1);
     Variable __tmp2 = Number(3);
     _addNode(_list, __tmp2);
-    _printList(_list);
-}*/
+    _printList(_list);*/
+    
+    return 0;
+}
