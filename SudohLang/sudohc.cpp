@@ -4,7 +4,9 @@
 #include <vector>
 #include <map>
 #include <regex>
-#include <boost/spirit/include/qi.hpp>
+#include "parser.h"
+//#include <boost/spirit/include/qi.hpp>
+//#include <boost/phoenix/stl/container/container.hpp>
 
 #define NAME_RE "[a-zA-Z_]+[a-zA-Z0-9_]*"
 #define TYPE_RE "(number|boolean|string|list|map)"
@@ -21,45 +23,14 @@
                       "( , " NAME_RE "( : " TYPE_RE ")?)* \\) (returns " TYPE_RE ")?"
 
 using namespace std;
-using namespace boost::spirit;
-using namespace boost::phoenix;
+//using namespace boost::spirit;
+//using namespace boost::phoenix;
 
 const string keywords[] = {
     "for", "in", "to", "while", "do"
 };
 
 string transpiled;
-
-struct ParseException : public exception
-{
-    string msg;
-    ParseException(string str) : msg(str) {}
-    const char *what() const throw() { return msg.c_str(); }
-};
-
-struct Variable
-{
-    enum Type { numInt, numFloat, boolean, str, list, mapT, function };
-
-    union Value
-    {
-        int intVal;
-        double floatVal;
-        bool boolVal;
-        string stringVal;
-        vector<Value> listVal;
-        map<Value, Value> mapVal;
-
-        // Value does not dynamically allocate data; specify destructor so that
-        // compiler does not complain
-        ~Value() {}
-    };
-
-    Type type;
-    Value value;
-};
-
-map<string, Variable> inScope;
 
 // for now tokens must be seperated by spaces
 // TODO make use of regex
@@ -163,9 +134,8 @@ bool functionDef(const vector<string> &tokens)
     if (!validName(name))
         throw ParseException("Invalid function name.");
 
-    Variable var = { Variable::function, { 0 } };
+    //Variable var = { Variable::function, { 0 } };
 
-    vector<Variable> params;
     if (tokens[index++] == "(")
     {
         bool more = true;
@@ -210,41 +180,163 @@ bool functionDef(const vector<string> &tokens)
     return true;
 }
 
-/*struct Name : public qi::grammar<Name>
+/*struct Expression : public qi::grammar<string::const_iterator, int()>
 {
-    qi::rule<string::const_iterator, unsigned()> start;
+    qi::rule<string::const_iterator, int()> start, lit, term, factor, plus, minus;// , multiply, divide,
+        //paren, name, negative, positive;
 
-    Name() : Name::base_type(start)
+    Expression() : Expression::base_type(start)
     {
-        start = qi::char_("a-zA-Z_") >> *(qi::char_("a-zA-Z0-9_"));
+        //start = factor >> "+" >> factor | factor;
+        //factor = "(" >> start >> ")" | lit;
+        //lit = qi::char_;
+        start = plus | minus | lit;
+        plus = start >> "+" >> start;
+        minus = start >> "-" >> start;
+        lit = qi::char_;
     }
-} /*name;*/
-
-template <typename T>
-struct Lexem
-{
-    /*string accept;
-    void (*onAccept)(T &);
-
-    Lexem(string str) : accept(str), onAccept(nullptr) {}
-    Lexem(string str, void (*func)(T &)) : accept(str), onAccept(func) {}*/
 };
 
-struct Rule
+struct ArithmeticGrammar4 : public qi::grammar<std::string::const_iterator, int()>
 {
+    ArithmeticGrammar4() : ArithmeticGrammar4::base_type(start)
+    {
+        start = product >> *('+' >> product);
+        product = factor >> *('*' >> factor);
+        factor = qi::char_ | group;
+        group = '(' >> start >> ')';
+    }
 
+    // as before, mirrors the template arguments of qi::grammar.
+    qi::rule<string::const_iterator, int()> start, group, product, factor;
+};*/
+
+/*struct CompoundRule;
+
+struct Lexem
+{
+    bool isTerminal;
+    Lexem(bool terminal) : isTerminal(terminal) {}
+    virtual bool acceptAtIndex(const string& str, int& idx) = 0;
+};
+
+struct Nonterminal : public Lexem
+{
+    CompoundRule* nonTerminalRule;
+
+    Nonterminal(CompoundRule* rule) : Lexem(false), nonTerminalRule(rule) {}
+
+    bool acceptAtIndex(const string& str, int& idx) override
+    {
+        return false;
+    }
+};
+
+struct Terminal : public Lexem
+{
+    const regex matchRegex;
+
+    Terminal(const char* re) : Lexem(true), matchRegex(re) {}
+
+    // character at index should be any character contained in 'anyCharOf' array
+    bool acceptAtIndex(const string& str, int& idx) override
+    {
+        smatch match;
+        regex_search(str.begin() + idx, str.end(), match, matchRegex);
+        
+        int maxLen = 0;
+        for (const ssub_match& a : match)
+        {
+            int len = a.length();
+            if (len > maxLen)
+            {
+                maxLen = len;
+            }
+        }
+
+        idx += maxLen;
+
+        return maxLen == 0;
+    }
+};
+
+struct CompoundRule
+{
+    vector<vector<Lexem>> toread;
+
+    CompoundRule(vector<vector<Lexem>> read) : toread(read) {}
+
+    vector<vector<Lexem>> acceptsSubstring(const string& str, int index)
+    {
+        vector<vector<Lexem>> accepts;
+        for (vector<Lexem>& vec : toread)
+        {
+            for (Lexem& lex : vec)
+            {
+                int idx = index;
+                if (lex.acceptAtIndex(str, idx))
+                {
+                    accepts.push_back(vec);
+                }
+            }
+        }
+        return accepts;
+    }
 };
 
 struct Grammar
 {
-    vector<Rule> rules;
+    vector<CompoundRule> rules;
+
+    Grammar(vector<CompoundRule> r) : rules(r) {}
+    Grammar(const Grammar& other) : rules(other.rules) {}
+
+    bool recurse(const string& s, int idx, vector<string>& names)
+    {
+        char c = s[idx];
+        for (CompoundRule& rule : rules)
+        {
+            vector<vector<Lexem>> applicableRules = rule.acceptsSubstring(s, idx);
+
+        }
+        // find rules which may be relevant here
+
+    }
+
+    // returns list of names used
+    vector<string> match(const string& s)
+    {
+        vector<string> names;
+        if (recurse(s, 0, names))
+        {
+            return names;
+        }
+        else
+        {
+            throw ParseException("invalid line");
+        }
+    }
+    
 };
+
+vector<string> parse(const string& input, int start, Grammar grammar)
+{
+    return grammar.match(input);
+}*/
 
 void analyze(ifstream& file)
 {
     string contents;
     std::getline(file, contents);
-    vector<string> tokens = tokenize(contents);
+
+    /*CompoundRule rule1({ nullptr, string("+"), nullptr });
+    CompoundRule rule2({ string("1") });
+    CompoundRule rule3({ string("2") });
+    CompoundRule rule4({ string("3") });
+    CompoundRule rule5({ string("4") });
+    Grammar add({ rule1, rule2, rule3, rule4, rule5 });
+    parse("1+2+3+4", 0, add);*/
+    /*vector<string> tokens = tokenize(contents);
     if (tokens.size() == 0)
     {
         return;
@@ -263,26 +355,30 @@ void analyze(ifstream& file)
     if (regex_match(spaceSep, funcDefRegex))
     {
         functionDef(tokens);
-    }
+    }*/
 
+    string n;
     string funcName;
-    /*auto name = qi::char_("a-zA-Z_") >> *(qi::char_("a-zA-Z0-9_"));
-    auto type = qi::lit("number") | qi::lit("string") | qi::lit("boolean") | qi::lit("list") | qi::lit("map");
+    //auto name = (qi::char_("a-zA-Z_") >> *(qi::char_("a-zA-Z0-9_")));
+    /*auto type = qi::lit("number") | qi::lit("string") | qi::lit("boolean") | qi::lit("list") | qi::lit("map");
     auto funcDef = qi::lit("function ") >> name >> "("
         >> -(name >> ":" >> type >> *("," >> name >> ":" >> type)) >> ")"
-        >> -("returns " >> type);
-
-    auto f = qi::char_('f');
+        >> -("returns " >> type);*/
+    //using boost::phoenix::ref;
+    //using boost::phoenix::push_back;
 
     //string s = "function asdf(p1:number,p2:string) returns map";
-    string s = "function";
+    string s = "a+b";
     auto start = s.begin();
-    unsigned int result;
-    bool info = qi::parse(start, s.end(), f[funcasdf], result);*/
-
+    vector<string> result;
+    int resulti;
+    //bool info = qi::parse(start, s.end(), Expression(), resulti);
+    //bool info = qi::parse(start, s.end(), Expression(), resulti);
+    //bool r = parse({"a", "<-", "1", "+", "2"});
+    bool r = parse({ "a_1A", "<-", "(", "1", "+", "true", ")", "+", "\"hello\"" });
 }
 
-/*int main(int argc, char** argv)
+int main(int argc, char** argv)
 {
     if (argc != 2)
     {
@@ -336,4 +432,4 @@ void analyze(ifstream& file)
     transpiled += "}\n";
     file.close();
     return 0;
-}*/
+}

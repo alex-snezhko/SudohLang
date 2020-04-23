@@ -1,36 +1,37 @@
 function List()
-	list = {
-		"head": null
-		"size": 0
+	list <- {
+		"head" <- null
+		"size" <- 0
 	}
 	return list
 
 
-function addNode(list, num)
-	node = {
-		"val": num,
+function addNode(list, val)
+	node <- {
+		"val": val,
 		"next": null
 	}
 
 	if list["size"] is 0 then
-		list["head"] = node
+		list["head"] <- node
 	else
-		curr = list["head"]
+		curr <- list["head"]
 		while curr["next"] is not null do
-			curr = curr["next"]
+			curr <- curr["next"]
+		curr["next"] <- node
 
-		curr["next"] = node
+	list["size"] <- list["size"] + 1
 
 function printList(list)
-	curr = list["head"]
+	curr <- list["head"]
 	print("[")
 	until curr is null do
 		print(curr["val"] + ",")
-		curr = curr["next"]
+		curr <- curr["next"]
 
 	printLine("]")
 
-list = List()
+list <- List()
 addNode(list, 1)
 addNode(list, 2)
 addNode(list, 3)

@@ -4,69 +4,73 @@
 #include <unordered_map>
 #include <stdexcept>
 
-// to prevent implicit conversion of char* values to bool
-enum class Bool { t, f };
+enum class Type { number, boolean, str, list, mapT, null };
 
 struct Number
 {
     union
     {
-        int iVal;
-        double fVal;
+        int intVal;
+        double floatVal;
     };
     bool isInt;
 
-    int intVal() const
+    int getIntVal() const
     {
         if (!isInt)
         {
             throw std::exception();
         }
-        return iVal;
+        return intVal;
     }
-    double floatVal() const { return isInt ? (double)iVal : fVal; }
+    double getFloatVal() const { return isInt ? (double)intVal : floatVal; }
 
-    Number(int i) : iVal(i), isInt(true) {}
-    Number(double f) : fVal(f), isInt(false) {}
+    Number(int i) : intVal(i), isInt(true) {}
+    Number(double f) : floatVal(f), isInt(false) {}
 
     Number operator+(const Number& other) const
     {
         return isInt && other.isInt ?
-            Number(intVal() + other.intVal()) :
-            Number(floatVal() + other.floatVal());
+            Number(getIntVal() + other.getIntVal()) :
+            Number(getFloatVal() + other.getFloatVal());
     }
 
     Number operator-(const Number& other) const
     {
         return isInt && other.isInt ?
-            Number(intVal() - other.intVal()) :
-            Number(floatVal() - other.floatVal());
+            Number(getIntVal() - other.getIntVal()) :
+            Number(getFloatVal() - other.getFloatVal());
     }
 
     Number operator*(const Number& other) const
     {
         return isInt && other.isInt ?
-            Number(intVal() * other.intVal()) :
-            Number(floatVal() * other.floatVal());
+            Number(getIntVal() * other.getIntVal()) :
+            Number(getFloatVal() * other.getFloatVal());
     }
 
     Number operator/(const Number& other) const
     {
-        return isInt && other.isInt && (intVal() % other.intVal() == 0) ?
-            Number(intVal() / other.intVal()) :
-            Number(floatVal() / other.floatVal());
+        return isInt && other.isInt && (getIntVal() % other.getIntVal() == 0) ?
+            Number(getIntVal() / other.getIntVal()) :
+            Number(getFloatVal() / other.getFloatVal());
     }
 
     bool operator==(const Number& other) const
     {
         return isInt && other.isInt ?
-            intVal() == other.intVal() :
-            floatVal() == other.floatVal();
+            getIntVal() == other.getIntVal() :
+            getFloatVal() == other.getFloatVal();
     }
 
     bool operator!=(const Number& other) const
     {
         return !operator==(other);
+    }
+
+    bool operator<(const Number& other) const
+    {
+
     }
 };
 
@@ -79,6 +83,7 @@ struct Hash
         return 0;
     }
 };
+typedef std::string String;
 typedef std::vector<Variable> List;
 typedef std::unordered_map<Variable, Variable, Hash/*, Cmp, std::less<const Variable&>, std::allocator<std::pair<Variable, Variable>>*/> Map;
 
@@ -100,47 +105,66 @@ struct MapRef : public Ref
     MapRef(Map m) : Ref(1), mapVal(m) {}
 };
 
-bool operator<(const Variable& v1, const Variable& v2);
-
-bool operator==(const Variable& v1, const Variable& v2);
-
-bool operator!=(const Variable& v1, const Variable& v2);
-
 struct Variable
 {
-    enum { number, boolean, str, list, mapT, null } type;
+    Type type;
 
     union Val
     {
         Number numVal;
         bool boolVal;
-        std::string* stringRef;
+        String* stringRef;
         Ref* sharedRef;
 
         Val(Number val) : numVal(val) {}
         Val(bool val) : boolVal(val) {}
-        Val(std::string val) : stringRef(new std::string(val)) {}
+        Val(String val) : stringRef(new String(val)) {}
         Val(Ref* val) : sharedRef(val) {}
     } val;
 
-    Variable(const Variable& other) : type(other.type), val(other.val)
+    Variable() : type(Type::null), val(false) {}
+    Variable(int n) : type(Type::number), val(Number(n)) {}
+    Variable(double n) : type(Type::number), val(Number(n)) {}
+    Variable(Number n) : type(Type::number), val(n) {}
+    Variable(bool b) : type(Type::boolean), val(b) {}
+    Variable(const char* s) : type(Type::str), val(String(s)) {}
+    Variable(String s) : type(Type::str), val(s) {}
+    Variable(List l) : type(Type::list), val(new ListRef(l)) {}
+    Variable(Map m) : type(Type::mapT), val(new MapRef(m)) {}
+
+    void setValue(const Variable& other)
     {
-        if (other.type == str)
+        switch (other.type)
         {
-            val.stringRef = new std::string(*other.val.stringRef);
+        case Type::number:
+            val.numVal = other.val.numVal;
+            break;
+        case Type::boolean:
+            val.boolVal = other.val.boolVal;
+            break;
+        case Type::str:
+            val.stringRef = new String(*other.val.stringRef);
+            break;
+        case Type::list:
+        case Type::mapT:
+            val.sharedRef = other.val.sharedRef;
+            val.sharedRef->refCount++;
+            break;
         }
     }
 
+    Variable(const Variable& other) : type(other.type), val(other.val) { setValue(other); }
+
     void freeMem()
     {
-        if (type == list || type == mapT)
+        if (type == Type::list || type == Type::mapT)
         {
             if (--val.sharedRef->refCount == 0)
             {
                 delete val.sharedRef;
             }
         }
-        if (type == str)
+        if (type == Type::str)
         {
             delete val.stringRef;
         }
@@ -148,32 +172,50 @@ struct Variable
 
     ~Variable() { freeMem(); }
 
-    Variable() : type(null), val(false) {}
-    Variable(Number n) : type(number), val(n) {}
-    Variable(Bool b) : type(boolean), val(b == Bool::t) {}
-    Variable(const char* s) : type(str), val(std::string(s)) {}
-    Variable(List l) : type(list), val(new ListRef(l)) {}
-    Variable(Map m) : type(mapT), val(new MapRef(m)) {}
-
-    Variable operator+(const Variable& other)
+    String toString() const
     {
         switch (type)
         {
-        case Variable::number:
-            if (other.type != number)
+        case Type::number:
+            if (val.numVal.isInt)
             {
-                throw std::exception();
+                return std::to_string(val.numVal.intVal);
             }
-            //return numVal + other.numVal;
-        case Variable::str:
-            break;
-        case Variable::list:
-            break;
+            return std::to_string(val.numVal.floatVal);
+        case Type::boolean:
+            return std::to_string(val.boolVal);
+        case Type::str:
+            return *val.stringRef;
+        case Type::list:
+            return "list";//TODO
+        case Type::mapT:
+            return "map";//TODO
+        case Type::null:
+            return "null";
+        }
+    }
+
+    Variable operator+(const Variable& other) const
+    {
+        switch (type)
+        {
+        case Type::number:
+            if (other.type == Type::str)
+            {
+                return toString() + *other.val.stringRef;
+            }
+            if (other.type == Type::number)
+            {
+                return val.numVal + other.val.numVal;
+            }
+            throw std::exception();
+        case Type::str:
+            return *val.stringRef + other.toString();
+        case Type::list:
+            return Variable();//TODO
         default:
             throw std::exception();
-            break;
         }
-        return nullptr;
     }
 
     Variable& operator=(const Variable& other)
@@ -182,31 +224,51 @@ struct Variable
         {
             freeMem();
             type = other.type;
-            switch (other.type)
-            {
-            case number:
-                val.numVal = other.val.numVal;
-                break;
-            case boolean:
-                val.boolVal = other.val.boolVal;
-                break;
-            case str:
-                val.boolVal = other.val.boolVal;
-                break;
-            case list:
-            case mapT:
-                val.sharedRef = other.val.sharedRef;
-                val.sharedRef->refCount++;
-                break;
-            }
+            setValue(other);
         }
         return *this;
     }
 
-    /*bool operator<(const Variable& other) const
+    bool operator==(const Variable& other) const
     {
-        return true;
-    }*/
+        if (other.type == Type::null)
+        {
+            return type == Type::null;
+        }
+        if (type == Type::null)
+        {
+            return other.type == Type::null;
+        }
+
+        if (other.type != type)
+        {
+            throw std::exception();
+        }
+
+        switch (other.type)
+        {
+        case Type::number:
+            return val.numVal == other.val.numVal;
+        case Type::boolean:
+            return val.boolVal == other.val.boolVal;
+        case Type::str:
+            return *val.stringRef == *other.val.stringRef;
+        case Type::list:
+        case Type::mapT:
+            return val.sharedRef == other.val.sharedRef;
+        }
+        return false;
+    }
+
+    bool operator!=(const Variable& other) const
+    {
+        return !operator==(other);
+    }
+
+    bool operator<(const Variable& other) const
+    {
+        return false;//o1.stringVal < other.stringVal;
+    }
 
     bool operator>(const Variable& other) const
     {
@@ -227,31 +289,22 @@ struct Variable
     {
         switch (type)
         {
-        case str:
+        case Type::str:
         {
-            if (index.type != number)
+            if (index.type != Type::number)
             {
                 throw std::exception();
             }
-            const char c[2]{ (*val.stringRef)[index.val.numVal.intVal()], '\0' };
+            const char c[2]{ (*val.stringRef)[index.val.numVal.getIntVal()], '\0' };
             Variable st = c;
-            return st; // Sudoh strings immutable; trying to set value of character in string won't even compile
+            return st; // Sudoh strings immutable; trying to set value of character in string won't even transpile
         }
-        case list:
+        case Type::list:
             break;
-        case mapT:
+        case Type::mapT:
         {
             Map& m = ((MapRef*)(val.sharedRef))->mapVal;
-            Variable& a = m[index];
-            /*try
-            {
-                auto a = m.at(index);
-            }
-            catch (std::out_of_range&)
-            {
-                m.
-            }*/
-            return a;
+            return m[index];
         }
         default:
             throw std::exception();
@@ -259,5 +312,3 @@ struct Variable
         return *this;
     }
 };
-
-

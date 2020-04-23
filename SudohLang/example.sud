@@ -1,16 +1,14 @@
-print("hello world")
+function compute(a,b,c,d,e, list)
+	l = 0
+	for i = 0 to length(list) do
+		l += list[i]
+	x = a + (b * c) - d / e
+	print(x)
+	printLine()
 
-function hello(str)
-    new = "hello " + str
-    print(new)
+compute(1+2-(0+2+(0*0)),2,3,4,5,[1,2,3])
 
 
-x = 1 + (3 * 4) - 5 / 2
-
-function swap(a: number, b: number)
-	temp = a
-	a = b
-	b = temp
 
 repeat
 	// code
