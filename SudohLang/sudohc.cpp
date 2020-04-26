@@ -375,7 +375,7 @@ void analyze(ifstream& file)
     //bool info = qi::parse(start, s.end(), Expression(), resulti);
     //bool info = qi::parse(start, s.end(), Expression(), resulti);
     //bool r = parse({"a", "<-", "1", "+", "2"});
-    bool r = parse({ "a_1A", "<-", "(", "1", "+", "true", ")", "+", "\"hello\"" });
+    bool r = parse({ "m", "<-", "{", "\"head\"", "<-", "null", ",", "\"size\"", "<-", "0", "}" });
 }
 
 int main(int argc, char** argv)
