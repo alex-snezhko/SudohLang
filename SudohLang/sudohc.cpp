@@ -26,10 +26,6 @@ using namespace std;
 //using namespace boost::spirit;
 //using namespace boost::phoenix;
 
-const string keywords[] = {
-    "for", "in", "to", "while", "do"
-};
-
 string transpiled;
 
 // for now tokens must be seperated by spaces
@@ -375,7 +371,13 @@ void analyze(ifstream& file)
     //bool info = qi::parse(start, s.end(), Expression(), resulti);
     //bool info = qi::parse(start, s.end(), Expression(), resulti);
     //bool r = parse({"a", "<-", "1", "+", "2"});
-    bool r = parse({ "m", "<-", "{", "\"head\"", "<-", "null", ",", "\"size\"", "<-", "0", "}" });
+    bool r = parse({
+        "t", "<-", "false", "\n",
+        "if", "not", "t", "then", "\n",
+        "\t", "m", "<-", "{", "\"head\"", "<-", "null", ",", "\"size\"", "<-", "0", "}", "\n",
+        "else", "\n",
+        "\t", "a", "<-", "3"}
+    );
 }
 
 int main(int argc, char** argv)

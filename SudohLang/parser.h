@@ -18,6 +18,11 @@ public:
 	}
 };
 
+const std::set<std::string> keywords = {
+	"if", "then", "else", "do", "not", "true", "false", "repeat",
+	"while", "for", "<-", "return" // TODO
+};
+
 const std::regex NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
 const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
 const std::regex STRING_RE = std::regex("\".*\"");
@@ -35,30 +40,35 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 {
 	if (std::regex_match(name, NAME_RE))
 	{
+		if (keywords.find(name) != keywords.end())
+		{
+			return false;
+		}
+
 		bool exists = false;
 		if (allVarsInScope.find(name) != allVarsInScope.end())
 		{
 			exists = true;
 		}
 
-		if (mustExist)
+		if (!exists)
 		{
-			if (exists)
+			if (mustExist)
 			{
-				varsInScopeN[currScopeLevel].insert(name);
-				allVarsInScope.insert(name);
+				throw ParseException("use of undeclared variable " + name);
 			}
-		}
-		else
-		{
 			varsInScopeN[currScopeLevel].insert(name);
 			allVarsInScope.insert(name);
 		}
+
 		return true;
 	}
 	return false;
 }
 
+void parseNextLine();
+void parseNestedBlock();
+bool parseStructure(void (*&)(size_t));
 bool parseAssignment();
 bool parseLvalue();
 bool parseVar();
@@ -91,7 +101,7 @@ std::string typeToString(const ParsedType& t)
 }
 
 const std::string END = "";
-const std::string& nextToken(bool skip = true, bool skipWhitespace = true)
+const std::string& nextToken(bool advance = true, bool skipWhitespace = true)
 {
 	if (skipWhitespace)
 	{
@@ -104,8 +114,50 @@ const std::string& nextToken(bool skip = true, bool skipWhitespace = true)
 	{
 		return END;
 	}
-	return tokens[skip ? tokenNum++ : tokenNum];
+	return tokens[advance ? tokenNum++ : tokenNum];
 }
+
+// returns scope level of next line
+void skipToNextLine()
+{
+	const std::string* token = &nextToken(false, false);
+
+	if (*token == "\n")
+	{
+		size_t scope;
+		do
+		{
+			scope = 0;
+
+			token = &nextToken(true, false);
+			while (*token == "\t")
+			{
+				scope++;
+				token = &nextToken(true, false);
+			}
+
+		} while (*token == "\n" || token->substr(0, 2) == "//");
+		tokenNum--;
+
+		if (*token == END)
+		{
+			throw ParseException("done");
+		}
+
+		currScopeLevel = scope;
+	}
+	if (*token == END)
+	{
+		throw ParseException("done");
+	}
+	//throw ParseException("expected new line");
+}
+
+
+
+//  +-----------------------+
+//  |   Parsing functions   |
+//  +-----------------------+
 
 bool parse(std::vector<std::string> vec)
 {
@@ -114,7 +166,16 @@ bool parse(std::vector<std::string> vec)
 	try
 	{
 		skipToNextLine();
-		parseNestedBlock();
+
+		varsInScopeN.push_back(std::set<std::string>());
+
+		while (currScopeLevel == 0)
+		{
+			parseNextLine();
+		}
+
+		allVarsInScope.erase(varsInScopeN[currScopeLevel].begin(), varsInScopeN[currScopeLevel].end());
+		varsInScopeN.pop_back();
 		// check that all function names are valid
 	}
 	catch (ParseException& e)
@@ -126,7 +187,7 @@ bool parse(std::vector<std::string> vec)
 
 void parseNextLine()
 {
-	if (parseAssignment() || structure() || funcDef())
+	if (parseAssignment())
 	{
 		const std::string& token = nextToken(false, false);
 		if (token != "\n" && token != END)
@@ -141,11 +202,37 @@ void parseNextLine()
 		{
 			throw ParseException("illegal attempt to increase indentation level");
 		}
+		return;
 	}
-	else
+
+	void (*parseAfter)(size_t);
+	if (parseStructure(parseAfter))
 	{
-		throw ParseException("invalid line");
+		parseNestedBlock();
+		parseAfter(currScopeLevel);
+		return;
 	}
+
+	throw ParseException("invalid line");
+}
+
+bool parseAssignment()
+{
+	int init = tokenNum;
+	if (parseLvalue())
+	{
+		if (nextToken() == "<-")
+		{
+			if (parseExpr())
+			{
+				return true;
+			}
+			throw ParseException("expected expression");
+		}
+		throw ParseException("invalid assignment expression");
+	}
+
+	return tokenNum = init, false;
 }
 
 void parseNestedBlock()
@@ -162,44 +249,47 @@ void parseNestedBlock()
 	}
 
 	varsInScopeN.push_back(std::set<std::string>());
-	parseNextLine();
 
 	while (currScopeLevel == blockScope)
 	{
 		parseNextLine();
 	}
 
-	allVarsInScope.erase(varsInScopeN[currScopeLevel].begin(), varsInScopeN[currScopeLevel].end());
+	auto& curr = varsInScopeN.back();
+	allVarsInScope.erase(curr.begin(), curr.end());
 	varsInScopeN.pop_back();
-	currScopeLevel--;
 }
 
-bool funcDef()
+void parseAfterIf(size_t scope)
 {
-	if (nextToken(false) == "function")
+	bool elseReached = false;
+	while (currScopeLevel == scope)
 	{
-		tokenNum++;
-		if (acceptVarName(nextToken()))
+		if (nextToken() == "else")
 		{
-			if (nextToken() == "(")
+			if (nextToken() == "if")
 			{
-				parseCommaSep([] { return acceptVarName(nextToken()); });
-
-				if (nextToken() == ")")
+				if (elseReached)
 				{
-					varsInScopeN.push_back(std::set<std::string>());
-					currScopeLevel++;
-					return true;
+					throw ParseException("'else' block cannot be followed by 'else if' block");
 				}
-				throw ParseException("closing parenthesis expected");
+				parseNestedBlock();
+				continue;
 			}
-			throw ParseException("expected argument list after function declaration");
+			if (elseReached)
+			{
+				throw ParseException("multiple 'else' blocks not allowed");
+			}
+			elseReached = true;
+			parseNestedBlock();
+			continue;
 		}
-		throw ParseException("invalid function name");
+		tokenNum--;
+		return;
 	}
 }
 
-bool structure()
+bool parseStructure(void (*&parseAfter)(size_t))
 {
 	int init = tokenNum;
 	const std::string* token = &nextToken(true);
@@ -212,41 +302,8 @@ bool structure()
 			{
 				size_t ifScope = currScopeLevel;
 
-				bool elseReached = false;
-				do
-				{
-					// get all lines inside of block
-					parseNestedBlock();
-					if (currScopeLevel != ifScope)
-					{
-						return true;
-					}
-					
-					if (nextToken() == "else")
-					{
-						if (nextToken() == "if")
-						{
-							if (elseReached)
-							{
-								throw ParseException("'else' block cannot be followed by 'else if' block");
-							}
-							continue;
-						}
-						if (elseReached)
-						{
-							throw ParseException("multiple 'else' blocks not allowed");
-						}
-						elseReached = true;
-					}
-					tokenNum--;
-					return true;
-				} while (true);
-
-				/*for (int i = (int)varsInScopeN.size() - 1; i >= newScope; i--)
-				{
-					allVarsInScope.erase(varsInScopeN[i].begin(), varsInScopeN[i].end());
-					varsInScopeN.pop_back();
-				}*/
+				parseAfter = parseAfterIf;
+				return true;
 			}
 			throw ParseException("expected 'then'");
 		}
@@ -260,6 +317,7 @@ bool structure()
 		{
 			if (nextToken() == "do")
 			{
+				parseAfter = [](size_t) {};
 				return true;
 			}
 			throw ParseException("expected 'do'");
@@ -295,7 +353,8 @@ bool structure()
 							//                           ^
 							if (nextToken() == "do")
 							{
-								parseNestedBlock();
+								parseAfter = [](size_t) {};
+								return true;
 							}
 							throw ParseException("expected 'do'");
 						}
@@ -315,26 +374,28 @@ bool structure()
 
 	}
 
-	tokenNum = init;
-}
-
-bool parseAssignment()
-{
-	int init = tokenNum;
-	if (parseLvalue())
+	if (*token == "function")
 	{
-		if (nextToken() == "<-")
+		tokenNum++;
+		if (acceptVarName(nextToken()))
 		{
-			if (parseExpr())
+			if (nextToken() == "(")
 			{
-				return true;
+				parseCommaSep([] { return acceptVarName(nextToken()); });
+
+				if (nextToken() == ")")
+				{
+					parseAfter = [](size_t) {};
+					return true;
+				}
+				throw ParseException("closing parenthesis expected");
 			}
-			throw ParseException("expected expression");
+			throw ParseException("expected argument list after function declaration");
 		}
-		throw ParseException("invalid assignment expression");
+		throw ParseException("invalid function name");
 	}
 
-	return tokenNum = init, false;
+	tokenNum = init;
 }
 
 bool parseLvalue()
@@ -393,6 +454,7 @@ bool parseVar()
 			}
 			throw ParseException("expected expression inside bracket");
 		}
+		tokenNum--;
 
 		return true;
 	}
@@ -558,14 +620,10 @@ void parseExprBinary(const ParsedType& leftType)
 	}
 
 	ParsedType rightType;
-	if (!parseTerm(rightType))
-	{
-		tokenNum = init;
-		return;
-	}
-
 	if (token == "+")
 	{
+		if (!parseTerm(rightType)) { tokenNum = init; return; }
+
 		switch (leftType)
 		{
 		case ParsedType::number:
@@ -586,6 +644,8 @@ void parseExprBinary(const ParsedType& leftType)
 	}
 	else if (token == "-" || token == "*" || token == "/" || token == "mod")
 	{
+		if (!parseTerm(rightType)) { tokenNum = init; return; }
+
 		if ((leftType == ParsedType::number || leftType == ParsedType::any) &&
 			(rightType == ParsedType::number || rightType == ParsedType::any))
 		{
@@ -597,6 +657,8 @@ void parseExprBinary(const ParsedType& leftType)
 	}
 	else if (token == "and" || token == "or")
 	{
+		if (!parseTerm(rightType)) { tokenNum = init; return; }
+
 		if ((leftType == ParsedType::boolean || leftType == ParsedType::any) &&
 			(rightType == ParsedType::boolean || rightType == ParsedType::any))
 		{
@@ -608,6 +670,8 @@ void parseExprBinary(const ParsedType& leftType)
 	}
 	else if (token == "is")
 	{
+		if (!parseTerm(rightType)) { tokenNum = init; return; }
+
 		if (nextToken() != "not")
 		{
 			tokenNum--;
@@ -648,39 +712,4 @@ void parseCommaSep(bool (*checkFunc)())
 			break;
 		}
 	}
-}
-
-// returns scope level of next line
-void skipToNextLine()
-{
-	const std::string* token = &nextToken(false);
-
-	bool keepGoing = true;
-	if (*token == "\n")
-	{
-		size_t scope;
-		do
-		{
-			scope = 0;
-
-			token = &nextToken(false);
-			while (*token == "\t")
-			{
-				scope++;
-			}
-			keepGoing = *token == "\n" || token->substr(0, 2) != "//";
-		} while (keepGoing);
-
-		if (*token == END)
-		{
-			throw ParseException("done");
-		}
-
-		currScopeLevel = scope;
-	}
-	if (*token == END)
-	{
-		throw ParseException("done");
-	}
-	//throw ParseException("expected new line");
 }
