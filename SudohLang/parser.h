@@ -9,7 +9,6 @@ enum class ParsedType { number, boolean, string, list, map, null, any };
 class ParseException : public std::exception
 {
 	std::string msg;
-
 public:
 	ParseException(std::string str) : msg(str) {}
 	const char* what() const throw()
@@ -20,7 +19,7 @@ public:
 
 const std::set<std::string> keywords = {
 	"if", "then", "else", "do", "not", "true", "false", "repeat",
-	"while", "for", "<-", "return" // TODO
+	"while", "for", "<-", "return", "break", "continue", "mod" // TODO
 };
 
 const std::regex NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
@@ -40,13 +39,13 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 {
 	if (std::regex_match(name, NAME_RE))
 	{
-		if (keywords.find(name) != keywords.end())
+		if (keywords.count(name) != 0)
 		{
 			return false;
 		}
 
 		bool exists = false;
-		if (allVarsInScope.find(name) != allVarsInScope.end())
+		if (allVarsInScope.count(name) != 0)
 		{
 			exists = true;
 		}
@@ -66,9 +65,10 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 	return false;
 }
 
-void parseNextLine();
-void parseNestedBlock();
-bool parseStructure(void (*&)(size_t));
+bool parseNextLine(std::set<bool (*)()>&);
+void parseNestedBlock(std::set<bool (*)()>&);
+bool parseStructure(void (*&)(size_t, std::set<bool (*)()>&), bool (*&)());
+bool parseFuncDef();
 bool parseAssignment();
 bool parseLvalue();
 bool parseVar();
@@ -76,8 +76,6 @@ bool parseExpr(ParsedType& t = discard);
 bool parseTerm(ParsedType& t);
 void parseExprBinary(const ParsedType& left);
 bool parseVal(ParsedType& t);
-// commaSep rule accepts epsilon, so would always return true anyways;
-// if there is a syntax error, an exception will be thrown
 void parseCommaSep(bool (*checkFunc)());
 void skipToNextLine();
 
@@ -103,6 +101,7 @@ std::string typeToString(const ParsedType& t)
 const std::string END = "";
 const std::string& nextToken(bool advance = true, bool skipWhitespace = true)
 {
+	size_t init = tokenNum;
 	if (skipWhitespace)
 	{
 		while (tokenNum < tokens.size() && (tokens[tokenNum] == "\n" || tokens[tokenNum] == "\t"))
@@ -114,7 +113,10 @@ const std::string& nextToken(bool advance = true, bool skipWhitespace = true)
 	{
 		return END;
 	}
-	return tokens[advance ? tokenNum++ : tokenNum];
+
+	const std::string& ret = tokens[tokenNum];
+	tokenNum = advance ? tokenNum + 1 : init;
+	return ret;
 }
 
 // returns scope level of next line
@@ -124,6 +126,7 @@ void skipToNextLine()
 
 	if (*token == "\n")
 	{
+		tokenNum++;
 		size_t scope;
 		do
 		{
@@ -139,21 +142,9 @@ void skipToNextLine()
 		} while (*token == "\n" || token->substr(0, 2) == "//");
 		tokenNum--;
 
-		if (*token == END)
-		{
-			throw ParseException("done");
-		}
-
 		currScopeLevel = scope;
 	}
-	if (*token == END)
-	{
-		throw ParseException("done");
-	}
-	//throw ParseException("expected new line");
 }
-
-
 
 //  +-----------------------+
 //  |   Parsing functions   |
@@ -169,31 +160,41 @@ bool parse(std::vector<std::string> vec)
 
 		varsInScopeN.push_back(std::set<std::string>());
 
-		while (currScopeLevel == 0)
-		{
-			parseNextLine();
-		}
+		std::set<bool (*)()> extraRules = { parseFuncDef };
+		while (parseNextLine(extraRules)) {}
 
-		allVarsInScope.erase(varsInScopeN[currScopeLevel].begin(), varsInScopeN[currScopeLevel].end());
+		allVarsInScope.erase(varsInScopeN[0].begin(), varsInScopeN[0].end());
 		varsInScopeN.pop_back();
-		// check that all function names are valid
 	}
 	catch (ParseException& e)
 	{
 		std::cout << e.what();
 		return false;
 	}
+
+	return true;
 }
 
-void parseNextLine()
+void assertEndOfLine()
 {
+	const std::string& token = nextToken(false, false);
+	if (token != "\n" && token != END)
+	{
+		throw ParseException("each statement/program element must be on a new line");
+	}
+}
+
+bool parseNextLine(std::set<bool (*)()>& extraRules)
+{
+	const std::string* token = &nextToken(false, false);
+	if (*token == END)
+	{
+		return false;
+	}
+
 	if (parseAssignment())
 	{
-		const std::string& token = nextToken(false, false);
-		if (token != "\n" && token != END)
-		{
-			throw ParseException("each statement/program element must be on a new line");
-		}
+		assertEndOfLine();
 
 		size_t formerScope = currScopeLevel;
 		skipToNextLine();
@@ -202,40 +203,46 @@ void parseNextLine()
 		{
 			throw ParseException("illegal attempt to increase indentation level");
 		}
-		return;
+		return true;
 	}
 
-	void (*parseAfter)(size_t);
-	if (parseStructure(parseAfter))
+	void (*parseAfter)(size_t, std::set<bool (*)()>&) = nullptr;
+	bool (*extraRule)() = nullptr;
+	if (parseStructure(parseAfter, extraRule))
 	{
-		parseNestedBlock();
-		parseAfter(currScopeLevel);
-		return;
+		size_t scope = currScopeLevel;
+		if (extraRule && extraRules.count(extraRule) == 0)
+		{
+			extraRules.insert(extraRule);
+			parseNestedBlock(extraRules);
+			extraRules.erase(extraRule);
+		}
+		else
+		{
+			parseNestedBlock(extraRules);
+		}
+
+		if (parseAfter)
+		{
+			parseAfter(scope, extraRules);
+		}
+		return true;
+	}
+
+	for (auto& e : extraRules)
+	{
+		if (e())
+		{
+			return true;
+		}
 	}
 
 	throw ParseException("invalid line");
 }
 
-bool parseAssignment()
-{
-	int init = tokenNum;
-	if (parseLvalue())
-	{
-		if (nextToken() == "<-")
-		{
-			if (parseExpr())
-			{
-				return true;
-			}
-			throw ParseException("expected expression");
-		}
-		throw ParseException("invalid assignment expression");
-	}
 
-	return tokenNum = init, false;
-}
 
-void parseNestedBlock()
+void parseNestedBlock(std::set<bool (*)()>& extraRules)
 {
 	size_t blockScope = currScopeLevel + 1;
 	skipToNextLine();
@@ -250,30 +257,29 @@ void parseNestedBlock()
 
 	varsInScopeN.push_back(std::set<std::string>());
 
-	while (currScopeLevel == blockScope)
-	{
-		parseNextLine();
-	}
+	while (currScopeLevel == blockScope && parseNextLine(extraRules)) {} // TODO will not get statements after indented block
 
 	auto& curr = varsInScopeN.back();
 	allVarsInScope.erase(curr.begin(), curr.end());
 	varsInScopeN.pop_back();
 }
 
-void parseAfterIf(size_t scope)
+void parseAfterIf(size_t scope, std::set<bool (*)()>& extraRules)
 {
 	bool elseReached = false;
 	while (currScopeLevel == scope)
 	{
-		if (nextToken() == "else")
+		if (nextToken(false) == "else")
 		{
-			if (nextToken() == "if")
+			tokenNum++;
+			if (nextToken(false) == "if")
 			{
+				tokenNum++;
 				if (elseReached)
 				{
 					throw ParseException("'else' block cannot be followed by 'else if' block");
 				}
-				parseNestedBlock();
+				parseNestedBlock(extraRules);
 				continue;
 			}
 			if (elseReached)
@@ -281,18 +287,28 @@ void parseAfterIf(size_t scope)
 				throw ParseException("multiple 'else' blocks not allowed");
 			}
 			elseReached = true;
-			parseNestedBlock();
+			parseNestedBlock(extraRules);
 			continue;
 		}
-		tokenNum--;
 		return;
 	}
 }
 
-bool parseStructure(void (*&parseAfter)(size_t))
+bool extraParseInsideLoop()
 {
-	int init = tokenNum;
-	const std::string* token = &nextToken(true);
+	const std::string& t = nextToken(false);
+	if (t == "break" || t == "continue")
+	{
+		tokenNum++;
+		return true;
+	}
+	return false;
+}
+
+bool parseStructure(void (*&parseAfter)(size_t, std::set<bool (*)()>&), bool (*&additionalRule)())
+{
+	size_t init = tokenNum;
+	const std::string* token = &nextToken();
 	if (*token == "if")
 	{
 		ParsedType type;
@@ -317,7 +333,7 @@ bool parseStructure(void (*&parseAfter)(size_t))
 		{
 			if (nextToken() == "do")
 			{
-				parseAfter = [](size_t) {};
+				additionalRule = extraParseInsideLoop;
 				return true;
 			}
 			throw ParseException("expected 'do'");
@@ -353,7 +369,7 @@ bool parseStructure(void (*&parseAfter)(size_t))
 							//                           ^
 							if (nextToken() == "do")
 							{
-								parseAfter = [](size_t) {};
+								additionalRule = extraParseInsideLoop;
 								return true;
 							}
 							throw ParseException("expected 'do'");
@@ -374,7 +390,13 @@ bool parseStructure(void (*&parseAfter)(size_t))
 
 	}
 
-	if (*token == "function")
+	tokenNum = init;
+	return false;
+}
+
+bool parseFuncDef()
+{
+	if (nextToken(false) == "function")
 	{
 		tokenNum++;
 		if (acceptVarName(nextToken()))
@@ -385,7 +407,6 @@ bool parseStructure(void (*&parseAfter)(size_t))
 
 				if (nextToken() == ")")
 				{
-					parseAfter = [](size_t) {};
 					return true;
 				}
 				throw ParseException("closing parenthesis expected");
@@ -394,18 +415,36 @@ bool parseStructure(void (*&parseAfter)(size_t))
 		}
 		throw ParseException("invalid function name");
 	}
+	return false;
+}
 
-	tokenNum = init;
+bool parseAssignment()
+{
+	size_t init = tokenNum;
+	if (parseLvalue())
+	{
+		if (nextToken() == "<-")
+		{
+			if (parseExpr())
+			{
+				return true;
+			}
+			throw ParseException("expected expression");
+		}
+		throw ParseException("invalid assignment expression");
+	}
+
+	return tokenNum = init, false;
 }
 
 bool parseLvalue()
 {
-	int init = tokenNum;
-	const std::string& token = nextToken();
-	if (acceptVarName(token))
+	size_t init = tokenNum;
+	if (acceptVarName(nextToken()))
 	{
-		while (nextToken() == "[")
+		while (nextToken(false) == "[")
 		{
+			tokenNum++;
 			if (parseExpr())
 			{
 				if (nextToken() == "]")
@@ -416,7 +455,6 @@ bool parseLvalue()
 			}
 			throw ParseException("expected expression inside bracket");
 		}
-		tokenNum--;
 
 		return true;
 	}
@@ -426,12 +464,14 @@ bool parseLvalue()
 
 bool parseVar()
 {
-	int init = tokenNum;
-	const std::string& token = nextToken();
-	if (acceptVarName(token, true))
+	size_t init = tokenNum;
+	const std::string* token = &nextToken();
+	if (acceptVarName(*token, true))
 	{
-		if (nextToken() == "(")
+		token = &nextToken(false);
+		if (*token == "(")
 		{
+			tokenNum++;
 			parseCommaSep([] { return parseExpr(); });
 
 			if (nextToken() == ")")
@@ -440,10 +480,10 @@ bool parseVar()
 			}
 			throw ParseException("expected closing parenthesis");
 		}
-		tokenNum--;
 
-		while (nextToken() == "[")
+		while (*token == "[")
 		{
+			tokenNum++;
 			if (parseExpr())
 			{
 				if (nextToken() == "]")
@@ -454,13 +494,19 @@ bool parseVar()
 			}
 			throw ParseException("expected expression inside bracket");
 		}
-		tokenNum--;
 
 		return true;
 	}
 
 	return tokenNum = init, false;
 }
+
+
+
+//  +-------------------------+
+//  |   Expressiong parsing   |
+//  |   functions             |
+//  +-------------------------+
 
 bool parseExpr(ParsedType& t)
 {
@@ -474,7 +520,7 @@ bool parseExpr(ParsedType& t)
 
 bool parseTerm(ParsedType& t)
 {
-	int init = tokenNum;
+	size_t init = tokenNum;
 	ParsedType type;
 	const std::string& token = nextToken();
 
@@ -518,18 +564,13 @@ bool parseTerm(ParsedType& t)
 		return tokenNum = init, false;
 	}
 
-	tokenNum--;
-
+	tokenNum = init;
 	return parseVal(t);
-
-	// check if this is a valid literal value;
-	// if it is not, this is not a valid expression
-	//return val(t) ? exprBinary(t) : tokenNum = init, false;
 }
 
 bool parseVal(ParsedType& t)
 {
-	int init = tokenNum;
+	size_t init = tokenNum;
 	const std::string& token = nextToken();
 
 	// check for boolean
@@ -600,7 +641,7 @@ bool parseVal(ParsedType& t)
 	}
 
 	// check if this is valid variable-type expression indicating 'any' type
-	if (tokenNum--, parseVar())
+	if (tokenNum = init, parseVar())
 	{
 		return t = ParsedType::any, true;
 	}
@@ -611,14 +652,8 @@ bool parseVal(ParsedType& t)
 
 void parseExprBinary(const ParsedType& leftType)
 {
-	int init = tokenNum;
+	size_t init = tokenNum;
 	const std::string& token = nextToken();
-
-	if (token == END)
-	{
-		return;
-	}
-
 	ParsedType rightType;
 	if (token == "+")
 	{
@@ -672,9 +707,9 @@ void parseExprBinary(const ParsedType& leftType)
 	{
 		if (!parseTerm(rightType)) { tokenNum = init; return; }
 
-		if (nextToken() != "not")
+		if (nextToken(false) == "not")
 		{
-			tokenNum--;
+			tokenNum++;
 		}
 
 		if ((leftType == ParsedType::any || rightType == ParsedType::any) ||
@@ -694,21 +729,21 @@ void parseExprBinary(const ParsedType& leftType)
 
 void parseCommaSep(bool (*checkFunc)())
 {
-	int init = tokenNum;
+	size_t init = tokenNum;
 	if (checkFunc())
 	{
 		// loop to handle further comma-separated expressions
 		while (true)
 		{
-			if (nextToken() == ",")
+			if (nextToken(false) == ",")
 			{
+				tokenNum++;
 				if (checkFunc())
 				{
 					continue;
 				}
 				throw ParseException("expected item after comma");
 			}
-			tokenNum--;
 			break;
 		}
 	}
