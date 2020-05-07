@@ -26,7 +26,6 @@ const std::regex NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
 const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
 const std::regex STRING_RE = std::regex("\".*\"");
 
-std::set<std::string> allVarsInScope;
 std::vector<std::set<std::string>> varsInScopeN;
 std::set<std::string> functionNames;
 size_t currScopeLevel;
@@ -45,9 +44,13 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 		}
 
 		bool exists = false;
-		if (allVarsInScope.count(name) != 0)
+		for (std::set<std::string>& e : varsInScopeN)
 		{
-			exists = true;
+			if (e.count(name) != 0)
+			{
+				exists = true;
+				break;
+			}
 		}
 
 		if (!exists)
@@ -57,7 +60,6 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 				throw ParseException("use of undeclared variable " + name);
 			}
 			varsInScopeN[currScopeLevel].insert(name);
-			allVarsInScope.insert(name);
 		}
 
 		return true;
@@ -66,7 +68,7 @@ bool acceptVarName(const std::string& name, bool mustExist = false)
 }
 
 bool parseNextLine(std::set<bool (*)()>&);
-void parseNestedBlock(std::set<bool (*)()>&);
+void parseCurrentBlock(std::set<bool (*)()>&);
 bool parseStructure(void (*&)(size_t, std::set<bool (*)()>&), bool (*&)());
 bool parseFuncDef();
 bool parseAssignment();
@@ -157,14 +159,13 @@ bool parse(std::vector<std::string> vec)
 	try
 	{
 		skipToNextLine();
-
-		varsInScopeN.push_back(std::set<std::string>());
+		if (currScopeLevel != 0)
+		{
+			throw ParseException("first line of file must not be indented");
+		}
 
 		std::set<bool (*)()> extraRules = { parseFuncDef };
-		while (parseNextLine(extraRules)) {}
-
-		allVarsInScope.erase(varsInScopeN[0].begin(), varsInScopeN[0].end());
-		varsInScopeN.pop_back();
+		parseCurrentBlock(extraRules);
 	}
 	catch (ParseException& e)
 	{
@@ -175,12 +176,34 @@ bool parse(std::vector<std::string> vec)
 	return true;
 }
 
-void assertEndOfLine()
+void moveToNextLine(bool nextIndented)
 {
 	const std::string& token = nextToken(false, false);
 	if (token != "\n" && token != END)
 	{
 		throw ParseException("each statement/program element must be on a new line");
+	}
+
+	size_t initScope = currScopeLevel;
+	skipToNextLine();
+	
+	if (nextIndented)
+	{
+		if (currScopeLevel <= initScope)
+		{
+			throw ParseException("empty block not allowed");
+		}
+		if (currScopeLevel > initScope + 1)
+		{
+			throw ParseException("block may not be indented more than one level");
+		}
+	}
+	else
+	{
+		if (currScopeLevel > initScope)
+		{
+			throw ParseException("illegal attempt to increase indentation level");
+		}
 	}
 }
 
@@ -194,15 +217,7 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 
 	if (parseAssignment())
 	{
-		assertEndOfLine();
-
-		size_t formerScope = currScopeLevel;
-		skipToNextLine();
-
-		if (currScopeLevel > formerScope)
-		{
-			throw ParseException("illegal attempt to increase indentation level");
-		}
+		moveToNextLine(false);
 		return true;
 	}
 
@@ -211,15 +226,17 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 	if (parseStructure(parseAfter, extraRule))
 	{
 		size_t scope = currScopeLevel;
+
+		moveToNextLine(true);
 		if (extraRule && extraRules.count(extraRule) == 0)
 		{
 			extraRules.insert(extraRule);
-			parseNestedBlock(extraRules);
+			parseCurrentBlock(extraRules);
 			extraRules.erase(extraRule);
 		}
 		else
 		{
-			parseNestedBlock(extraRules);
+			parseCurrentBlock(extraRules);
 		}
 
 		if (parseAfter)
@@ -242,25 +259,14 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 
 
 
-void parseNestedBlock(std::set<bool (*)()>& extraRules)
+void parseCurrentBlock(std::set<bool (*)()>& extraRules)
 {
-	size_t blockScope = currScopeLevel + 1;
-	skipToNextLine();
-	if (currScopeLevel < blockScope)
-	{
-		throw ParseException("empty block not allowed");
-	}
-	if (currScopeLevel > blockScope)
-	{
-		throw ParseException("block may not be indented more than one level");
-	}
+	size_t blockScope = currScopeLevel;
 
 	varsInScopeN.push_back(std::set<std::string>());
 
-	while (currScopeLevel == blockScope && parseNextLine(extraRules)) {} // TODO will not get statements after indented block
+	while (currScopeLevel == blockScope && parseNextLine(extraRules)) {}
 
-	auto& curr = varsInScopeN.back();
-	allVarsInScope.erase(curr.begin(), curr.end());
 	varsInScopeN.pop_back();
 }
 
@@ -279,15 +285,27 @@ void parseAfterIf(size_t scope, std::set<bool (*)()>& extraRules)
 				{
 					throw ParseException("'else' block cannot be followed by 'else if' block");
 				}
-				parseNestedBlock(extraRules);
-				continue;
+
+				ParsedType type;
+				if (parseExpr(type) && (type == ParsedType::boolean || type == ParsedType::any))
+				{
+					if (nextToken() == "then")
+					{
+						moveToNextLine(true);
+						parseCurrentBlock(extraRules);
+						continue;
+					}
+					throw ParseException("expected 'then'");
+				}
+				throw ParseException("expected condition");
 			}
 			if (elseReached)
 			{
 				throw ParseException("multiple 'else' blocks not allowed");
 			}
 			elseReached = true;
-			parseNestedBlock(extraRules);
+			moveToNextLine(true);
+			parseCurrentBlock(extraRules);
 			continue;
 		}
 		return;
@@ -703,14 +721,9 @@ void parseExprBinary(const ParsedType& leftType)
 		throw ParseException("'" + token + "' cannot be applied to types " +
 			typeToString(leftType) + " and " + typeToString(rightType));
 	}
-	else if (token == "is")
+	else if (token == "=" || token == "!=")
 	{
 		if (!parseTerm(rightType)) { tokenNum = init; return; }
-
-		if (nextToken(false) == "not")
-		{
-			tokenNum++;
-		}
 
 		if ((leftType == ParsedType::any || rightType == ParsedType::any) ||
 			(leftType == rightType))

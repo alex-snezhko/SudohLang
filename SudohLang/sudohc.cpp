@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <map>
 #include <regex>
@@ -27,8 +28,6 @@
 
 std::string transpiled;
 
-// for now tokens must be seperated by spaces
-// TODO make use of regex
 std::vector<std::string> tokenize(std::string line)
 {
 	// symbols which act as both delimiters and tokens themselves
@@ -127,13 +126,10 @@ std::vector<std::string> tokenize(std::string line)
 
 void analyze(std::ifstream& file)
 {
-	std::string contents;
-	std::getline(file, contents);
+	std::stringstream contents;
+	contents << file.rdbuf();
 
-	std::vector<std::string> tokens = tokenize(
-		"for i <- 0 to 10 do\n"
-		"\thello <- 1"
-		);
+	std::vector<std::string> tokens = tokenize(contents.str());
 
 	bool r = parse(tokens);
 }
@@ -160,32 +156,6 @@ int main(int argc, char** argv)
 		std::cout << "invalid file\n";
 		return 1;
 	}
-
-	transpiled +=
-		"#include <iostream>\n"
-		"#include <string>\n"
-		"#include <vector>\n"
-		"#include <map>\n"
-		"struct Variable\n"
-		"{\n"
-		"    struct Variable\n"
-		"    {\n"
-		"        enum Type { numInt, numFloat, boolean, str, list, mapT, function };\n"
-		"        union Value\n"
-		"        {\n"
-		"            int intVal;\n"
-		"            double floatVal;\n"
-		"            bool boolVal;\n"
-		"            string stringVal;\n"
-		"            vector<Value> listVal;\n"
-		"            map<Value, Value> mapVal;\n"
-		"            ~Value() {}\n"
-		"        };\n"
-		"        Type type;\n"
-		"        Value val;\n"
-		"    };\n"
-		"};\n";
-
 
 	analyze(file);
 
