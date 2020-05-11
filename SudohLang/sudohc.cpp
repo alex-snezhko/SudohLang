@@ -6,27 +6,6 @@
 #include <map>
 #include <regex>
 #include "parser.h"
-//#include <boost/spirit/include/qi.hpp>
-//#include <boost/phoenix/stl/container/container.hpp>
-
-#define NAME_RE "[a-zA-Z_]+[a-zA-Z0-9_]*"
-#define TYPE_RE "(number|boolean|string|list|map)"
-#define INT_RE "([0-9]+)"
-#define FLOAT_RE "([0-9]*.[0-9]+)"
-#define STRING_RE "(\".*\")"
-#define VAL_RE ""
-#define LIST_RE "([" VAL_RE "(," VAL_RE ")*])"
-#define BOOL_RE "((not )? (" VAL_RE " (<=|<|is|>|>=) " VAL_RE ")|)"
-
-#define FUNCCALL_RE NAME_RE " \\( (" NAME_RE " (, " NAME_RE ")*)? \\)"
-#define IF_RE "if " BOOL_RE
-#define FUNCDEF_RE "function " NAME_RE " \\( " NAME_RE "( : " TYPE_RE ")?" \
-					  "( , " NAME_RE "( : " TYPE_RE ")?)* \\) (returns " TYPE_RE ")?"
-
-//using namespace boost::spirit;
-//using namespace boost::phoenix;
-
-std::string transpiled;
 
 std::vector<std::string> tokenize(std::string line)
 {
@@ -91,7 +70,7 @@ std::vector<std::string> tokenize(std::string line)
 				// didnt find closing quote then string is mal-formed
 				if (close == line.length())
 				{
-					throw ParseException("malformed string");
+					throw SyntaxException("malformed string");
 				}
 
 				tokens.push_back(line.substr(curr, close - curr + 1));
@@ -131,7 +110,11 @@ void analyze(std::ifstream& file)
 
 	std::vector<std::string> tokens = tokenize(contents.str());
 
-	bool r = parse(tokens);
+	bool r = parser::parse(tokens);
+	if (r)
+	{
+		std::cout << parser::transpiledMain;
+	}
 }
 
 int main(int argc, char** argv)
@@ -159,7 +142,6 @@ int main(int argc, char** argv)
 
 	analyze(file);
 
-	transpiled += "}\n";
 	file.close();
 	return 0;
 }

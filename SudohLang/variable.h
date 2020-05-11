@@ -85,7 +85,7 @@ struct Hash
 };
 typedef std::string String;
 typedef std::vector<Variable> List;
-typedef std::unordered_map<Variable, Variable, Hash/*, Cmp, std::less<const Variable&>, std::allocator<std::pair<Variable, Variable>>*/> Map;
+typedef std::unordered_map<Variable, Variable, Hash> Map;
 
 struct Ref
 {
