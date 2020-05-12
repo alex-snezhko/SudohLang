@@ -18,60 +18,7 @@ public:
 namespace parser
 {
 	enum class ParsedType { number, boolean, string, list, map, null, any };
-
-	const std::regex NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
-	const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
-	const std::regex STRING_RE = std::regex("\".*\"");
-
-	const std::set<std::string> keywords = {
-		"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while",
-		"until", "for", "return", "break", "continue", "mod", "function", "and", "or" // TODO
-	};
-
-	std::vector<std::string> tokens;
-	size_t tokenNum;
-
-	std::vector<std::set<std::string>> varsInScopeN;
-	size_t currScopeLevel;
-
-	struct SudohFunction
-	{
-		std::string name;
-		int numParams;
-
-		// overloaded < operator for std::set ordering
-		bool operator<(const SudohFunction& other) const
-		{
-			return name < other.name;
-		}
-	};
-	std::set<SudohFunction> functionsDefined = {
-		{ "print", 1 }, { "printLine", 1 }, { "length", 1 },
-		{ "string", 1 }, { "number", 1 }, { "random", 0 }
-	};
-	std::set<SudohFunction> functionsUsed;
-	bool inFunction;
-
-	std::string transpiled;
-	std::string transpiledMain;
-	std::string transpiledFunctions;
-	std::string uncommittedTrans;
-
-
-	void commitLine(bool);
-	bool parseNextLine(std::set<bool (*)()>&);
-	void parseCurrentBlock(std::set<bool (*)()>&);
-	bool parseStructure(void (*&)(size_t, std::set<bool (*)()>&), bool (*&)());
-	bool parseAssignment();
-	bool parseVar();
-	ParsedType discard;
-	bool parseExpr(ParsedType& = discard);
-	bool parseTerm(ParsedType&);
-	void parseExprBinary(const ParsedType&);
-	bool parseVal(ParsedType&);
-	int parseCommaSep(bool (*)());
-	void skipToNextLine();
-
+	// returns string representation of a ParsedType enum
 	std::string typeToString(const ParsedType& t)
 	{
 		switch (t)
@@ -91,21 +38,100 @@ namespace parser
 		}
 	}
 
+	const std::regex NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
+	const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
+	const std::regex STRING_RE = std::regex("\".*\"");
+
+	const std::set<std::string> keywords = {
+		"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while",
+		"until", "for", "return", "break", "continue", "mod", "function", "and", "or" // TODO
+	};
+
+	std::vector<std::string> tokens;
+	size_t tokenNum;
+
+	std::vector<std::set<std::string>> varsInScopeN;
+	int currScopeLevel;
+
+	struct SudohFunction
+	{
+		std::string name;
+		int numParams;
+
+		// overloaded < operator for std::set ordering
+		bool operator<(const SudohFunction& other) const
+		{
+			return name < other.name;
+		}
+	};
+	// a set of all functions that are available to be used
+	std::set<SudohFunction> functionsDefined = {
+		{ "print", 1 }, { "printLine", 1 }, { "length", 1 },
+		{ "string", 1 }, { "number", 1 }, { "random", 0 }
+	};
+	// a list of programmer defined functions; does not include built-in functions as in functionsDefined
+	std::vector<SudohFunction> newFunctions;
+	// a set of all functions that the programmer has attempted to call
+	std::set<SudohFunction> functionsUsed;
+	// flag for determining whether the parser is currently inside of a function
+	bool inFunction;
+
+	// string which contains all statements that are not inside of a function; to be placed into main function
+	std::string transpiledMain;
+	// string which contains all function definitions
+	std::string transpiledFunctions;
+	// buffer string which will be written to one of the above transpiled strings at the end of a line
+	std::string uncommittedTrans;
+
+
+	void commitLine();
+	bool parseNextLine(std::set<bool (*)()>&);
+	void parseBlock(std::set<bool (*)()>&);
+	bool parseStructure(void (*&)(size_t, std::set<bool (*)()>&), bool (*&)());
+	bool parseAssignment();
+	bool parseVar();
+	ParsedType discard;
+	bool parseExpr(ParsedType& = discard);
+	bool parseTerm(ParsedType&);
+	void parseExprBinary(const ParsedType&);
+	bool parseVal(ParsedType&);
+	int parseCommaSep(bool (*)());
+	void skipToNextLine();
+
 	const std::string END = "";
 	// TODO maybe change working with tokens to pointers
 	const std::string& nextToken(bool advance, bool skipWhitespace = true)
 	{
 		size_t init = tokenNum;
+
+		int endScope = currScopeLevel;
 		if (skipWhitespace)
 		{
-			while (tokenNum < tokens.size() && (tokens[tokenNum] == "\n" || tokens[tokenNum] == "\t"))
+			while (tokenNum < tokens.size())
 			{
+				if (tokens[tokenNum] == "\n")
+				{
+					endScope = 0;
+				}
+				else if (tokens[tokenNum] == "\t")
+				{
+					endScope++;
+				}
+				else
+				{
+					break;
+				}
 				tokenNum++;
 			}
 		}
 		if (tokenNum == tokens.size())
 		{
 			return END;
+		}
+
+		if (endScope < currScopeLevel)
+		{
+			//throw SyntaxException("first line of multiline statement must be indented at or below level of successive lines");
 		}
 
 		const std::string& ret = tokens[tokenNum];
@@ -118,10 +144,10 @@ namespace parser
 	{
 		const std::string* token = &nextToken(false, false);
 
+		int scope = 0;
 		if (*token == "\n")
 		{
 			tokenNum++;
-			size_t scope;
 			do
 			{
 				scope = 0;
@@ -135,33 +161,33 @@ namespace parser
 
 			} while (*token == "\n" || token->substr(0, 2) == "//");
 			tokenNum--;
-
-			currScopeLevel = scope;
 		}
+		currScopeLevel = scope;
 	}
 
 	//  +-----------------------+
 	//  |   Parsing functions   |
 	//  +-----------------------+
 
-	bool parse(std::vector<std::string> vec)
+	bool parse(std::vector<std::string> vec, std::string& transpiled)
 	{
 		tokens = vec;
-		tokenNum = 0;
 		inFunction = false;
 		try
 		{
-			uncommittedTrans = "int main()";
-			commitLine(false);
-
 			skipToNextLine();
 			if (currScopeLevel != 0)
 			{
 				throw SyntaxException("first line of file must not be indented");
 			}
 
+			currScopeLevel = -1;
+
+			uncommittedTrans = "int main()";
+			commitLine();
+
 			std::set<bool (*)()> extraRules = {};
-			parseCurrentBlock(extraRules);
+			parseBlock(extraRules);
 
 			for (const SudohFunction& e : functionsUsed)
 			{
@@ -179,16 +205,21 @@ namespace parser
 
 			// finalize transpiled content
 			transpiled = "#include \"variable.h\"\n\n";
-			for (const SudohFunction& e : functionsDefined)
+			if (newFunctions.size() != 0)
 			{
-				transpiled += "Variable " + e.name + "(";
-				for (int i = 0; i < e.numParams; i++)
+				for (const SudohFunction& e : newFunctions)
 				{
-					transpiled += "Variable&" + (i < e.numParams - 1) ? ", " : "";
+					transpiled += "Variable " + e.name + "(";
+					for (int i = 0; i < e.numParams; i++)
+					{
+						transpiled += std::string("Variable&") + (i < e.numParams - 1 ? ", " : "");
+					}
+					transpiled += ")\n";
 				}
-				transpiled += ")\n";
+
+				transpiled += "\n" + transpiledFunctions + "\n";
 			}
-			transpiled += "\n" + transpiledFunctions + "\n" + transpiledMain;
+			transpiled += transpiledMain;
 
 		}
 		catch (SyntaxException& e)
@@ -200,44 +231,12 @@ namespace parser
 		return true;
 	}
 
-	// TODO maybe place this inside of parseCurrentBlock to make parseBlock
-	void moveToNextLine(bool nextIndented)
-	{
-		const std::string& token = nextToken(false, false);
-		if (token != "\n" && token != END)
-		{
-			throw SyntaxException("each statement/program element must be on a new line");
-		}
-
-		size_t initScope = currScopeLevel;
-		skipToNextLine();
-
-		if (nextIndented)
-		{
-			if (currScopeLevel <= initScope)
-			{
-				throw SyntaxException("empty block not allowed");
-			}
-			if (currScopeLevel > initScope + 1)
-			{
-				throw SyntaxException("block may not be indented more than one level");
-			}
-		}
-		else
-		{
-			if (currScopeLevel > initScope)
-			{
-				throw SyntaxException("illegal attempt to increase indentation level");
-			}
-		}
-	}
-
-	void commitLine(bool indent)
+	void commitLine()
 	{
 		// determine whether to write new line to inside of main or to global scope (for functions)
 		std::string& commitTo = inFunction ? transpiledFunctions : transpiledMain;
 
-		for (size_t i = 0; i < currScopeLevel + indent - inFunction; i++)
+		for (int i = 0; i < currScopeLevel + !inFunction; i++)
 		{
 			commitTo += "\t";
 		}
@@ -255,9 +254,6 @@ namespace parser
 		if (parseAssignment())
 		{
 			uncommittedTrans += ";";
-			commitLine(true);
-
-			moveToNextLine(false);
 			return true;
 		}
 
@@ -265,20 +261,18 @@ namespace parser
 		bool (*extraRule)() = nullptr;
 		if (parseStructure(parseAfter, extraRule))
 		{
-			commitLine(true);
+			commitLine();
 
-			size_t scope = currScopeLevel;
-
-			moveToNextLine(true);
+			int scope = currScopeLevel;
 			if (extraRule && extraRules.count(extraRule) == 0)
 			{
 				extraRules.insert(extraRule);
-				parseCurrentBlock(extraRules);
+				parseBlock(extraRules);
 				extraRules.erase(extraRule);
 			}
 			else
 			{
-				parseCurrentBlock(extraRules);
+				parseBlock(extraRules);
 			}
 
 			if (parseAfter)
@@ -292,8 +286,6 @@ namespace parser
 		{
 			if (e())
 			{
-				commitLine(true);
-				moveToNextLine(false);
 				return true;
 			}
 		}
@@ -301,25 +293,46 @@ namespace parser
 		throw SyntaxException("invalid line");
 	}
 
-	void parseCurrentBlock(std::set<bool (*)()>& extraRules)
+	void parseBlock(std::set<bool (*)()>& extraRules)
 	{
-		size_t blockScope = currScopeLevel;
+		int initScope = currScopeLevel;
+
 		uncommittedTrans = "{";
-		commitLine(false);
+		commitLine();
+
+		skipToNextLine();
+		if (currScopeLevel <= initScope)
+		{
+			throw SyntaxException("empty block not allowed");
+		}
 
 		varsInScopeN.push_back(std::set<std::string>());
 
-		while (currScopeLevel == blockScope && parseNextLine(extraRules)) {}
+		while (currScopeLevel == initScope + 1 && parseNextLine(extraRules))
+		{
+			const std::string& token = nextToken(false, false);
+			if (token != "\n" && token != END)
+			{
+				throw SyntaxException("each statement/program element must be on a new line");
+			}
+			skipToNextLine();
+		}
 
-		if (inFunction && blockScope == 0)
+		if (inFunction && initScope == 0)
 		{
 			uncommittedTrans = "return null;";
-			commitLine(true);
+			commitLine();
 		}
-		size_t temp = currScopeLevel;
-		currScopeLevel = blockScope;
+
+		if (currScopeLevel > initScope)
+		{
+			throw SyntaxException("illegal attempt to increase indentation level");
+		}
+
+		int temp = currScopeLevel;
+		currScopeLevel = initScope;
 		uncommittedTrans = "}";
-		commitLine(false);
+		commitLine();
 		currScopeLevel = temp;
 
 		varsInScopeN.pop_back();
@@ -349,10 +362,9 @@ namespace parser
 						if (nextToken(true) == "then")
 						{
 							uncommittedTrans += ")";
-							commitLine(true);
+							commitLine();
 
-							moveToNextLine(true);
-							parseCurrentBlock(extraRules);
+							parseBlock(extraRules);
 							continue;
 						}
 						throw SyntaxException("expected 'then'");
@@ -365,9 +377,8 @@ namespace parser
 				}
 				elseReached = true;
 
-				commitLine(true);
-				moveToNextLine(true);
-				parseCurrentBlock(extraRules);
+				commitLine();
+				parseBlock(extraRules);
 				continue;
 			}
 			return;
@@ -592,7 +603,9 @@ namespace parser
 					if (nextToken(true) == ")")
 					{
 						uncommittedTrans += ")";
-						functionsDefined.insert({ funcName, numParams });
+						SudohFunction func = { funcName, numParams };
+						functionsDefined.insert(func);
+						newFunctions.push_back(func);
 
 						additionalRule = extraParseFunction;
 						parseAfter = [](auto, auto) { inFunction = false; };
@@ -612,7 +625,6 @@ namespace parser
 	bool parseAssignment()
 	{
 		// determine whether or not this is a valid lvalue
-		bool lvalue = false;
 		VarStatus status = parseVarName(VarParseMode::mayBeNew);
 		if (status != VarStatus::invalid)
 		{
@@ -635,11 +647,6 @@ namespace parser
 				throw SyntaxException("expected expression inside bracket");
 			}
 
-			return true;
-		}
-
-		if (lvalue)
-		{
 			if (nextToken(true) == "<-")
 			{
 				uncommittedTrans += " = ";

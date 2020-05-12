@@ -1,13 +1,5 @@
-function func(a, b, c)
-	return a + b + c
+function f(a)
+	return a
 
-for i <- 0 to 10 do
-	t <- 1 + 2
-	if t then
-		a <- i + 1
-	else if not t then
-		b <- i + 2
-	else
-		c <- i + 3
-a <- 1
-b <- 2
+t <- 1 + 2+ 2
+

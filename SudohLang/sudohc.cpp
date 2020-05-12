@@ -110,10 +110,11 @@ void analyze(std::ifstream& file)
 
 	std::vector<std::string> tokens = tokenize(contents.str());
 
-	bool r = parser::parse(tokens);
+	std::string transpiled;
+	bool r = parser::parse(tokens, transpiled);
 	if (r)
 	{
-		std::cout << parser::transpiledMain;
+		std::cout << transpiled;
 	}
 }
 
