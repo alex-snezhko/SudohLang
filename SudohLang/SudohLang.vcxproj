@@ -126,7 +126,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="linked.cpp" />
+    <ClCompile Include="parser.cpp" />
     <ClCompile Include="sudohc.cpp" />
+    <ClCompile Include="tokenize.cpp" />
     <ClCompile Include="variable.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -134,8 +136,8 @@
     <None Include="linked.sud" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="parser.h" />
-    <ClInclude Include="variable.h" />
+    <ClInclude Include="sudohc.h" />
+    <ClInclude Include="sudoh.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

@@ -1,5 +1,19 @@
-function f(a)
-	return a
+function swap(a, b)
+	temp <- a
+	a <- b
+	b <- temp
 
-t <- 1 + 2+ 2
+function sort(arr)
+	n <- length(arr)
+	for i <- 0 to n-2 do
+		for j <- 0 to n-i-2 do
+			if arr[j] > arr[j + 1] then
+				swap(arr[j], arr[j + 1])
 
+arr <- [3, 10, 4, 5, 2, 7, 8, 0, 1]
+repeat
+	cout <- "hello"
+while true != false
+sort(arr)
+for i <- 0 to length(arr) - 1 do
+	print(arr[i])

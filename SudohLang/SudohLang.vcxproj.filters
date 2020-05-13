@@ -24,16 +24,22 @@
     <ClCompile Include="variable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tokenize.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="example.sud" />
     <None Include="linked.sud" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="variable.h">
+    <ClInclude Include="sudoh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="parser.h">
+    <ClInclude Include="sudohc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

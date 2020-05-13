@@ -2,18 +2,17 @@ function List()
 	list <- { "head" <- null, "size" <- 0 }
 	return list
 
-
 function addNode(list, val)
 	node <- {
-		"val": val,
-		"next": null
+		"val" <- val,
+		"next" <- null
 	}
 
-	if list["size"] is 0 then
+	if list["size"] = 0 then
 		list["head"] <- node
 	else
 		curr <- list["head"]
-		while curr["next"] is not null do
+		while curr["next"] != null do
 			curr <- curr["next"]
 		curr["next"] <- node
 
@@ -22,7 +21,7 @@ function addNode(list, val)
 function printList(list)
 	curr <- list["head"]
 	print("[")
-	until curr is null do
+	until curr = null do
 		print(curr["val"] + ",")
 		curr <- curr["next"]
 
