@@ -17,3 +17,11 @@ while true != false
 sort(arr)
 for i <- 0 to length(arr) - 1 do
 	print(arr[i])
+
+
+
+
+bob <- { "name" <- "bob", "friends" <- {} }
+alex <- { "name" <- "alex", "friends" <- { bob } }
+
+friends <- alex["friends"]
