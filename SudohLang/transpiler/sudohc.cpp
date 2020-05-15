@@ -21,7 +21,7 @@ void analyze(std::ifstream& file)
 
 int main(int argc, char** argv)
 {
-	if (argc != 2)
+	/*if (argc != 2)
 	{
 		std::cout << "usage: sudohc <file.sud>\n";
 		return 1;
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 	{
 		std::cout << "invalid file type\n";
 		return 1;
-	}
+	}*/
 
 	std::ifstream file;
 	file.open("example.sud");

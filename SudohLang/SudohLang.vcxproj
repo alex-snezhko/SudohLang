@@ -125,19 +125,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="linked.cpp" />
-    <ClCompile Include="parser.cpp" />
-    <ClCompile Include="sudohc.cpp" />
-    <ClCompile Include="tokenize.cpp" />
-    <ClCompile Include="variable.cpp" />
+    <ClCompile Include="sudoh\linked.cpp" />
+    <ClCompile Include="sudoh\variable.cpp" />
+    <ClCompile Include="transpiler\parser.cpp" />
+    <ClCompile Include="transpiler\sudohc.cpp" />
+    <ClCompile Include="transpiler\tokenize.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.sud" />
     <None Include="linked.sud" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="sudohc.h" />
-    <ClInclude Include="sudoh.h" />
+    <ClInclude Include="sudoh\sudoh.h" />
+    <ClInclude Include="transpiler\sudohc.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
