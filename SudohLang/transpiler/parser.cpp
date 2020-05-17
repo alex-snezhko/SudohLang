@@ -6,7 +6,7 @@
 
 enum class ParsedType { number, boolean, string, list, map, null, any };
 // returns string representation of a ParsedType enum
-std::string typeToString(const ParsedType& t)
+std::string typeToString(const ParsedType t)
 {
 	switch (t)
 	{
@@ -31,16 +31,14 @@ const std::regex STRING_RE = std::regex("\".*\"");
 
 const std::set<std::string> keywords = {
 	"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while",
-	"until", "for", "return", "break", "continue", "mod", "function", "and", "or" // TODO
+	"until", "for", "return", "break", "continue", "mod", "function", "and", "or" // TODO complete set
 };
 
 std::vector<Token> tokens;
 int tokenNum;
-const std::string* fileContents;
-
 
 std::vector<std::set<std::string>> varsInScopeN;
-int currScopeLevel;
+int currStatementScope;
 
 struct SudohFunction
 {
@@ -86,108 +84,45 @@ bool parseTerm(ParsedType&);
 void parseExprBinary(ParsedType&);
 bool parseVal(ParsedType&);
 int parseCommaSep(bool (*)());
-void skipToNextLine();
 
-const std::string END = "";
-// TODO maybe change working with tokens to pointers
-const std::string& nextToken(bool advance, bool skipWhitespace = true)
+const std::string& nextToken()
 {
-	int init = tokenNum;
+	return tokens[tokenNum].tokenString;
+}
 
-	int endScope = currScopeLevel;
-	if (skipWhitespace)
+void appendAndAdvance(const std::string append)
+{
+	if (tokenNum < tokens.size())
 	{
-		while (tokenNum < tokens.size())
-		{
-			if (tokens[tokenNum].token == "\n")
-			{
-				endScope = 0;
-			}
-			else if (tokens[tokenNum].token == "\t")
-			{
-				endScope++;
-			}
-			else
-			{
-				break;
-			}
-			tokenNum++;
-		}
+		tokenNum++;
 	}
-	if (tokenNum == tokens.size())
-	{
-		return END;
-	}
-
-	if (endScope < currScopeLevel)
-	{
-		//TODO parserError("first line of multiline statement must be indented at or below level of successive lines");
-	}
-
-	const std::string& ret = tokens[tokenNum].token;
-	tokenNum = advance ? tokenNum + 1 : init;
-	return ret;
+	uncommittedTrans += append;
 }
 
 // returns scope level of next line
-void skipToNextLine()
+int nextTokenScope()
 {
-	const std::string* token = &nextToken(false, false);
+	int scope = currStatementScope;
 
-	if (*token == "\n")
+	const std::string* token = &nextToken();
+	while (*token == "\n" || *token == "\t")
 	{
-		int scope;
-		do
+		if (*token == "\n")
 		{
-			tokenNum++;
 			scope = 0;
-
-			token = &nextToken(false, false);
-			while (*token == "\t")
-			{
-				tokenNum++;
-				scope++;
-				token = &nextToken(false, false);
-				if (*token == END)
-				{
-					currScopeLevel = 0;
-					return;
-				}
-			}
-
-		} while (*token == "\n" || token->substr(0, 2) == "//");
-
-		currScopeLevel = scope;
+		}
+		else if (*token == "\t")
+		{
+			scope++;
+		}
+		tokenNum++;
+		token = &nextToken();
 	}
-	if (currScopeLevel == -1)
+	if (*token == END)
 	{
-		currScopeLevel = 0;
+		return 0;
 	}
-}
-
-void parserError(const std::string message)
-{
-	const std::string& contents = *fileContents;
-	int fileCharIdx = tokens[tokenNum].fileCharNum;
-
-	int beginLine = fileCharIdx, endLine = fileCharIdx;
-	while (beginLine != 0 && contents[beginLine - 1] != '\n' && contents[beginLine - 1] != '\t')
-	{
-		beginLine--;
-	}
-	while (endLine != contents.length() && contents[endLine] != '\n')
-	{
-		endLine++;
-	}
-	std::string line = contents.substr(beginLine, endLine - beginLine);
-
-	std::cout << "Compiler error on line " << tokens[tokenNum].lineNum << ": " << message << std::endl
-		<< "\t" << line << std::endl << "\t";
-	for (int i = 0; i < fileCharIdx - beginLine; i++)
-	{
-		std::cout << " ";
-	}
-	std::cout << "^" << std::endl;
+	return scope;
 }
 
 //  +-----------------------+
@@ -195,59 +130,86 @@ void parserError(const std::string message)
 //  +-----------------------+
 
 // returns token number broken at
-int parse(const std::string& contents, std::string& transpiled)
+bool parse(const std::string& contents, std::string& transpiled)
 {
-	tokens = tokenize(contents);
-	fileContents = &contents;
-	inFunction = false;
-
-	skipToNextLine();
-	if (currScopeLevel != 0)
+	tokenNum = 0;
+	try
 	{
-		parserError("first line of file must not be indented");
-	}
+		tokens = tokenize(contents);
+		inFunction = false;
 
-	currScopeLevel = -1;
-
-	uncommittedTrans = "int main()";
-	commitLine();
-
-	std::set<bool (*)()> extraRules = {};
-	parseBlock(extraRules);
-
-	for (const SudohFunction& e : functionsUsed)
-	{
-		auto matching = functionsDefined.find(e);
-		if (matching == functionsDefined.end())
+		nextTokenScope();
+		if (currStatementScope != 0)
 		{
-			parserError("attempted use of undeclared function " + e.name);
+			throw SyntaxException("base scope must not be indented");
 		}
-		if (matching->numParams != e.numParams)
-		{
-			parserError("expected " + std::to_string(matching->numParams) +
-				" parameters for function '" + matching->name + "'");
-		}
-	}
 
-	// finalize transpiled content
-	transpiled = "#include \"sudoh.h\"\n\n";
-	if (newFunctions.size() != 0)
-	{
-		for (const SudohFunction& e : newFunctions)
+		currStatementScope = -1;
+
+		uncommittedTrans = "int main()";
+		commitLine();
+
+		std::set<bool (*)()> extraRules = {};
+		parseBlock(extraRules);
+
+		for (const SudohFunction& e : functionsUsed)
 		{
-			transpiled += "Variable " + e.name + "(";
-			for (int i = 0; i < e.numParams; i++)
+			auto matching = functionsDefined.find(e);
+			if (matching == functionsDefined.end())
 			{
-				transpiled += std::string("Variable&") + (i < e.numParams - 1 ? ", " : "");
+				throw SyntaxException("attempted use of undeclared function " + e.name);
 			}
-			transpiled += ");\n";
+			if (matching->numParams != e.numParams)
+			{
+				// TODO call at right token num
+				throw SyntaxException("expected " + std::to_string(matching->numParams) + " parameters for function '" +
+					matching->name + "' but got " + std::to_string(e.numParams));
+			}
 		}
 
-		transpiled += "\n" + transpiledFunctions + "\n";
-	}
-	transpiled += transpiledMain;
+		// finalize transpiled content
+		transpiled = "#include \"sudoh.h\"\n\n";
+		if (newFunctions.size() != 0)
+		{
+			for (const SudohFunction& e : newFunctions)
+			{
+				transpiled += "Variable " + e.name + "(";
+				for (int i = 0; i < e.numParams; i++)
+				{
+					transpiled += std::string("Variable&") + (i < e.numParams - 1 ? ", " : "");
+				}
+				transpiled += ");\n";
+			}
 
-	return 0; //TODO debug
+			transpiled += "\n" + transpiledFunctions;
+		}
+		transpiled += transpiledMain;
+		return true;
+	}
+	catch (SyntaxException& e)
+	{
+		size_t fileCharIdx = tokens[tokenNum].fileCharNum;
+
+		size_t beginLine = fileCharIdx, endLine = fileCharIdx;
+		while (beginLine != 0 && contents[beginLine - 1] != '\n' && contents[beginLine - 1] != '\t')
+		{
+			beginLine--;
+		}
+		while (endLine != contents.length() && contents[endLine] != '\n')
+		{
+			endLine++;
+		}
+		std::string line = contents.substr(beginLine, endLine - beginLine);
+
+		std::cout << "Compiler error on line " << tokens[tokenNum].lineNum << ": " << e.what() << std::endl
+			<< "\t" << line << std::endl << "\t";
+		for (int i = 0; i < fileCharIdx - beginLine; i++)
+		{
+			std::cout << " ";
+		}
+		std::cout << "^" << std::endl;
+		return false;
+	}
 }
 
 void commitLine()
@@ -255,7 +217,7 @@ void commitLine()
 	// determine whether to write new line to inside of main or to global scope (for functions)
 	std::string& commitTo = inFunction ? transpiledFunctions : transpiledMain;
 
-	for (int i = 0; i < currScopeLevel + !inFunction; i++)
+	for (int i = 0; i < currStatementScope + !inFunction; i++)
 	{
 		commitTo += "\t";
 	}
@@ -263,18 +225,19 @@ void commitLine()
 	uncommittedTrans = "";
 }
 
-void assertEndOfLine()
+void endOfLine()
 {
-	const std::string& token = nextToken(false, false);
+	const std::string& token = nextToken();
 	if (token != "\n" && token != END)
 	{
-		parserError("each statement/program element must be on a new line");
+		throw SyntaxException("each statement/program element must be on a new line");
 	}
+	commitLine();
 }
 
 bool parseNextLine(std::set<bool (*)()>& extraRules)
 {
-	if (nextToken(false, false) == END)
+	if (nextToken() == END)
 	{
 		return false;
 	}
@@ -282,8 +245,7 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 	if (parseFuncCall() || parseAssignment())
 	{
 		uncommittedTrans += ";";
-		assertEndOfLine();
-		commitLine();
+		endOfLine();
 		return true;
 	}
 
@@ -291,10 +253,9 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 	bool (*extraRule)() = nullptr;
 	if (parseStructure(extraRule, parseAfter))
 	{
-		assertEndOfLine();
-		commitLine();
+		endOfLine();
 
-		int scope = currScopeLevel;
+		int scope = currStatementScope;
 		if (extraRule && extraRules.count(extraRule) == 0)
 		{
 			extraRules.insert(extraRule);
@@ -317,13 +278,13 @@ bool parseNextLine(std::set<bool (*)()>& extraRules)
 	{
 		if (e())
 		{
-			assertEndOfLine();
-			commitLine();
+			endOfLine();
 			return true;
 		}
 	}
 
-	parserError("invalid line");
+	throw SyntaxException("invalid line");
+	return true;
 }
 
 void parseBlock(std::set<bool (*)()>& extraRules)
@@ -331,18 +292,18 @@ void parseBlock(std::set<bool (*)()>& extraRules)
 	uncommittedTrans = "{";
 	commitLine();
 
-	int blockScope = currScopeLevel + 1;
-	skipToNextLine();
-	if (currScopeLevel < blockScope)
+	int blockScope = currStatementScope + 1;
+	nextTokenScope();
+	if (currStatementScope < blockScope)
 	{
-		parserError("empty block not allowed");
+		throw SyntaxException("empty block not allowed");
 	}
 
 	varsInScopeN.push_back(std::set<std::string>());
 
-	while (currScopeLevel == blockScope && parseNextLine(extraRules))
+	while (currStatementScope == blockScope && parseNextLine(extraRules))
 	{
-		skipToNextLine();
+		nextTokenScope();
 	}
 
 	if (inFunction && blockScope == 1)
@@ -351,16 +312,16 @@ void parseBlock(std::set<bool (*)()>& extraRules)
 		commitLine();
 	}
 
-	if (currScopeLevel > blockScope)
+	if (currStatementScope > blockScope)
 	{
-		parserError("illegal attempt to increase indentation level");
+		throw SyntaxException("illegal attempt to increase indentation level");
 	}
 
-	int temp = currScopeLevel;
-	currScopeLevel = blockScope - 1;
+	int temp = currStatementScope;
+	currStatementScope = blockScope - 1;
 	uncommittedTrans = "}";
 	commitLine();
-	currScopeLevel = temp;
+	currStatementScope = temp;
 
 	varsInScopeN.pop_back();
 }
@@ -373,12 +334,11 @@ enum struct VarParseMode { mayBeNew, mustExist, functionParam };
 //			will accept any (function params) (do not search scope 0)
 VarStatus parseVarName(VarParseMode mode)
 {
-	const std::string& name = nextToken(false);
+	const std::string& name = nextToken();
 
 	// do not accept keyword as valid variable name
 	if (std::regex_match(name, NAME_RE) && keywords.count(name) == 0)
 	{
-		tokenNum++;
 		// keep buffer of function parameters to then inject into scope when function is entered
 		static std::vector<std::string> functionParams;
 
@@ -386,13 +346,13 @@ VarStatus parseVarName(VarParseMode mode)
 		if (mode == VarParseMode::functionParam)
 		{
 			functionParams.push_back(name);
-			uncommittedTrans += "Variable& _" + name;
+			appendAndAdvance("Variable& _" + name);
 			return VarStatus::newVar;
 		}
 		else
 		{
 			// inject function parameters into current scope if function has just been entered
-			if (currScopeLevel == 1 && !functionParams.empty())
+			if (currStatementScope == 1 && !functionParams.empty())
 			{
 				for (const std::string& e : functionParams)
 				{
@@ -416,14 +376,14 @@ VarStatus parseVarName(VarParseMode mode)
 			{
 				if (mode == VarParseMode::mustExist)
 				{
-					parserError("use of undeclared variable " + name);
+					throw SyntaxException("use of undeclared variable " + name);
 				}
-				varsInScopeN[currScopeLevel].insert(name);
-				uncommittedTrans += "Variable ";
+				varsInScopeN[currStatementScope].insert(name);
+				appendAndAdvance("Variable _" + name);
+				return VarStatus::newVar;
 			}
-			uncommittedTrans += "_" + name;
-
-			return exists ? VarStatus::existingVar : VarStatus::newVar;
+			appendAndAdvance("_" + name);
+			return VarStatus::existingVar;
 		}
 	}
 	return VarStatus::invalid;
@@ -432,30 +392,29 @@ VarStatus parseVarName(VarParseMode mode)
 bool parseMapEntry()
 {
 	uncommittedTrans += "{ ";
-	if (!parseExpr())
+	if (parseExpr())
 	{
-		parserError("expected expression as map key");
+		if (nextToken() == "<-")
+		{
+			appendAndAdvance(", ");
+			if (parseExpr())
+			{
+				uncommittedTrans += " }";
+				return true;
+			}
+			throw SyntaxException("expected expression as map value");
+		}
+		throw SyntaxException("map entry must be of form <key> <- <value>");
 	}
-	uncommittedTrans += ", ";
-	if (nextToken(true) != "<-")
-	{
-		parserError("map entry must be of form <key> <- <value>");
-	}
-	if (!parseExpr())
-	{
-		parserError("expected expression as map value");
-	}
-	uncommittedTrans += " }";
-	return true;
+	throw SyntaxException("expected expression as map key");
 }
 
 bool extraParseInsideLoop()
 {
-	const std::string& t = nextToken(false);
+	const std::string& t = nextToken();
 	if (t == "break" || t == "continue")
 	{
-		uncommittedTrans += t + ";";
-		tokenNum++;
+		appendAndAdvance(t + ";");
 		return true;
 	}
 	return false;
@@ -463,11 +422,17 @@ bool extraParseInsideLoop()
 
 bool extraParseFunction()
 {
-	if (nextToken(false) == "return")
+	if (nextToken() == "return")
 	{
-		uncommittedTrans = "return ";
-		tokenNum++;
-		parseExpr();
+		appendAndAdvance("return ");
+		if (nextToken() != "\n")
+		{
+			parseExpr();
+		}
+		else
+		{
+			uncommittedTrans += "null";
+		}
 		uncommittedTrans += ";";
 		return true;
 	}
@@ -477,45 +442,46 @@ bool extraParseFunction()
 void parseAfterIf(int scope, std::set<bool (*)()>& extraRules)
 {
 	bool elseReached = false;
-	while (currScopeLevel == scope)
+	while (currStatementScope == scope)
 	{
-		if (nextToken(false) == "else")
+		if (nextToken() == "else")
 		{
-			uncommittedTrans = "else";
-			tokenNum++;
-			if (nextToken(false) == "if")
+			appendAndAdvance("else");
+			if (nextToken() == "if")
 			{
-				tokenNum++;
 				if (elseReached)
 				{
-					parserError("'else' block cannot be followed by 'else if' block");
+					throw SyntaxException("'else' block cannot be followed by 'else if' block");
 				}
 
-				uncommittedTrans += " if (";
+				appendAndAdvance(" if (");
 				ParsedType type;
-				if (parseExpr(type) && (type == ParsedType::boolean || type == ParsedType::any))
+				if (parseExpr(type))
 				{
-					if (nextToken(true) == "then")
+					if (type == ParsedType::boolean || type == ParsedType::any)
 					{
-						uncommittedTrans += ")";
-						assertEndOfLine();
-						commitLine();
+						if (nextToken() == "then")
+						{
+							appendAndAdvance(")");
 
-						parseBlock(extraRules);
-						continue;
+							endOfLine();
+							parseBlock(extraRules);
+							continue;
+						}
+						throw SyntaxException("expected 'then'");
 					}
-					parserError("expected 'then'");
+					throw SyntaxException("'else if' condition must be of boolean type");
 				}
-				parserError("expected condition");
+				throw SyntaxException("expected condition");
 			}
 			if (elseReached)
 			{
-				parserError("multiple 'else' blocks not allowed");
+				throw SyntaxException("multiple 'else' blocks not allowed");
 			}
+			
+			endOfLine();
 			elseReached = true;
 
-			assertEndOfLine();
-			commitLine();
 			parseBlock(extraRules);
 			continue;
 		}
@@ -525,118 +491,162 @@ void parseAfterIf(int scope, std::set<bool (*)()>& extraRules)
 
 void parseAfterRepeat(int scope, std::set<bool (*)()>& extraRules)
 {
-	if (currScopeLevel == scope)
+	if (currStatementScope == scope)
 	{
-		const std::string& token = nextToken(true);
+		const std::string& token = nextToken();
 		if (token == "while" || token == "until")
 		{
-			uncommittedTrans = std::string("while (") + (token == "until" ? "!(" : "");
+			appendAndAdvance("while (" + std::string(token == "until" ? "!(" : ""));
 			ParsedType type;
 			if (parseExpr(type) && (type == ParsedType::boolean || type == ParsedType::any))
 			{
-				uncommittedTrans += token == "until" ? "))" : ")";
-				assertEndOfLine();
+				uncommittedTrans += token == "until" ? "));" : ");";
+				endOfLine();
+				return;
 			}
-			parserError("expected condition");
+			throw SyntaxException("expected boolean condition");
 		}
 	}
-	parserError("expected 'while' or 'until' condition after 'repeat' block");
+	throw SyntaxException("expected 'while' or 'until' condition after 'repeat' block");
 }
 
 bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set<bool (*)()>&))
 {
-	int init = tokenNum;
-	const std::string* token = &nextToken(true);
+	const std::string* token = &nextToken();
 	if (*token == "if")
 	{
-		uncommittedTrans += "if (";
+		appendAndAdvance("if (");
 		ParsedType type;
 		if (parseExpr(type) && (type == ParsedType::boolean || type == ParsedType::any))
 		{
-			if (nextToken(true) == "then")
+			if (nextToken() == "then")
 			{
-				uncommittedTrans += ")";
+				appendAndAdvance(")");
 				parseAfter = parseAfterIf;
 				return true;
 			}
-			parserError("expected 'then'");
+			throw SyntaxException("expected 'then'");
 		}
-		parserError("expected condition");
+		throw SyntaxException("expected boolean condition");
 	}
 
 	if (*token == "while" || *token == "until")
 	{
-		uncommittedTrans += std::string("while (") + (*token == "until" ? "!(" : "");
+		appendAndAdvance("while (" + std::string(*token == "until" ? "!(" : ""));
 		ParsedType type;
 		if (parseExpr(type) && (type == ParsedType::boolean || type == ParsedType::any))
 		{
-			if (nextToken(true) == "do")
+			if (nextToken() == "do")
 			{
-				uncommittedTrans += *token == "until" ? "))" : ")";
+				appendAndAdvance(*token == "until" ? "))" : ")");
 				additionalRule = extraParseInsideLoop;
 				return true;
 			}
-			parserError("expected 'do'");
+			throw SyntaxException("expected 'do'");
 		}
-		parserError("expected condition");
+		throw SyntaxException("expected boolean condition");
 	}
 
 	if (*token == "for")
 	{
-		uncommittedTrans += "for (";
+		appendAndAdvance("for (");
 
-		const std::string& forVar = nextToken(false);
-		// for i <- n1 (down)? to n2 do
+		const std::string& forVar = nextToken();
+		// for i <- [n] (down)? to [n] do
 		//     ^
 		if (parseVarName(VarParseMode::mayBeNew) != VarStatus::invalid)
 		{
-			// for i <- n1 (down)? to n2 do
+			// for i <- [n] (down)? to [n] do
 			//       ^
-			if (nextToken(true) == "<-")
+			if (nextToken() == "<-")
 			{
-				uncommittedTrans += " = ";
-				// for i <- n1 (down)? to n2 do
-				//          ^
+				appendAndAdvance(" = ");
+				// for i <- [n] (down)? to [n] do
+				//           ^
 				ParsedType type;
 				if (parseExpr(type) && (type == ParsedType::number || type == ParsedType::any))
 				{
 					uncommittedTrans += "; _" + forVar;
-					// for i <- n1 (down)? to n2 do
+					// for i <- [n] (down)? to [n] do
 					//              ^
-					token = &nextToken(true);
 					bool down = false;
-					if (*token == "to" || (down = true, *token == "down" && nextToken(true) == "to"))
+					if (nextToken() == "down")
 					{
-						uncommittedTrans += down ? " >= " : " <= ";
-						// for i <- n1 (down)? to n2 do
-						//                        ^
+						down = true;
+						tokenNum++;
+					}
+					if (nextToken() == "to")
+					{
+						appendAndAdvance(down ? " >= " : " <= ");
+						// for i <- [n] (down)? to [n] do
+						//                          ^
 						if (parseExpr(type) && (type == ParsedType::number || type == ParsedType::any))
 						{
-							// for i <- n1 (down)? to n2 do
-							//                           ^
-							if (nextToken(true) == "do")
+							// for i <- [n] (down)? to [n] do
+							//                             ^
+							if (nextToken() == "do")
 							{
-								uncommittedTrans += "; _" + forVar + " = _" + forVar + (down ? " - 1)" : " + 1)");
+								appendAndAdvance("; _" + forVar + " = _" + forVar + (down ? " - 1)" : " + 1)"));
 								additionalRule = extraParseInsideLoop;
 								return true;
 							}
-							parserError("expected 'do'");
+							throw SyntaxException("expected 'do'");
 						}
-						parserError("final value of 'for' loop should be numeric expression");
+						throw SyntaxException("final value of 'for' loop variable should be a numeric expression");
 					}
-					parserError("expected 'to' or 'down to'");
+					throw SyntaxException("expected 'to' or 'down to'");
 				}
-				parserError("value of 'for' loop variable should be numeric expression");
+				throw SyntaxException("initial value of 'for' loop variable should be a numeric expression");
 			}
-			parserError("expected initial value assignment to variable in 'for'");
+			throw SyntaxException("expected initial value assignment to variable in 'for'");
 		}
-		parserError("expected variable name after 'for'");
-		// TODO implement range based for loop
+
+		// for each e in [x] do
+		//     ^
+		if (nextToken() == "each")
+		{
+			appendAndAdvance("Variable& ");
+			// for each e in [x] do
+			//          ^
+			if (parseVarName(VarParseMode::mayBeNew) != VarStatus::invalid)
+			{
+				// for each e in [x] do
+				//            ^
+				if (nextToken() == "in")
+				{
+					appendAndAdvance(" : ");
+					static std::set<ParsedType> valid = {
+						ParsedType::string, ParsedType::list,
+						ParsedType::map, ParsedType::any
+					};
+
+					// for each e in [x] do
+					//                ^
+					ParsedType type;
+					if (parseExpr(type) && valid.count(type) != 0)
+					{
+						// for each e in [x] do
+						//                   ^
+						if (nextToken() == "do")
+						{
+							appendAndAdvance(")");
+							additionalRule = extraParseInsideLoop;
+							return true;
+						}
+						throw SyntaxException("expected 'do'");
+					}
+					throw SyntaxException("'for each' iteratable object should be a collection: (string, list, or map)");
+				}
+				throw SyntaxException("expected 'in'");
+			}
+			throw SyntaxException("expected declaration of 'for each' loop iteration variable");
+		}
+		throw SyntaxException("invalid 'for' loop statement");
 	}
 
 	if (*token == "repeat")
 	{
-		uncommittedTrans = "do";
+		appendAndAdvance("do");
 		additionalRule = extraParseInsideLoop;
 		parseAfter = parseAfterRepeat;
 		return true;
@@ -646,75 +656,75 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 	{
 		if (inFunction)
 		{
-			parserError("nested function illegal");
+			throw SyntaxException("nested function illegal");
 		}
 
-		const std::string& funcName = nextToken(true);
+		appendAndAdvance("Variable ");
+		const std::string& funcName = nextToken();
 		if (std::regex_match(funcName, NAME_RE) && keywords.count(funcName) == 0)
 		{
-			uncommittedTrans += "Variable _" + funcName + "(";
-			if (nextToken(true) == "(")
+			appendAndAdvance("_" + funcName);
+			if (nextToken() == "(")
 			{
+				appendAndAdvance("(");
 				inFunction = true;
 				int numParams = parseCommaSep([] { return parseVarName(VarParseMode::functionParam) != VarStatus::invalid; });
 
-				if (nextToken(true) == ")")
+				if (nextToken() == ")")
 				{
-					uncommittedTrans += ")";
+					appendAndAdvance(")");
 					SudohFunction func = { funcName, numParams };
 					functionsDefined.insert(func);
 					newFunctions.push_back(func);
 
 					additionalRule = extraParseFunction;
-					parseAfter = [](auto, auto) { inFunction = false; };
+					parseAfter = [](auto, auto) { commitLine(); inFunction = false; };
 					return true;
 				}
-				parserError("closing parenthesis expected");
+				throw SyntaxException("closing parenthesis expected");
 			}
-			parserError("expected argument list after function declaration");
+			throw SyntaxException("expected argument list after function declaration");
 		}
-		parserError("invalid function name");
+		throw SyntaxException("invalid function name");
 	}
 
-	tokenNum = init;
 	return false;
 }
 
 bool parseAssignment()
 {
 	// determine whether or not this is a valid lvalue
-	VarStatus status = parseVarName(VarParseMode::mayBeNew);
+	VarStatus status = parseVarName(VarParseMode::mayBeNew); // TODO maybe only add if assignment parse passes
 	if (status != VarStatus::invalid)
 	{
-		while (nextToken(false) == "[")
+		while (nextToken() == "[")
 		{
-			uncommittedTrans += "[";
 			if (status == VarStatus::newVar)
 			{
-				parserError("cannot access map value of undefined variable");
+				throw SyntaxException("cannot access map value of undefined variable");
 			}
 
-			tokenNum++;
+			appendAndAdvance("[");
 			if (parseExpr())
 			{
-				if (nextToken(true) == "]")
+				if (nextToken() == "]")
 				{
-					uncommittedTrans += "]";
+					appendAndAdvance("]");
 					continue;
 				}
-				parserError("expected ']'");
+				throw SyntaxException("expected ']'");
 			}
-			parserError("expected expression inside bracket");
+			throw SyntaxException("expected expression inside bracket");
 		}
 
-		if (nextToken(true) == "<-")
+		if (nextToken() == "<-")
 		{
-			uncommittedTrans += " = ";
+			appendAndAdvance(" = ");
 			if (parseExpr())
 			{
 				return true;
 			}
-			parserError("expected expression");
+			throw SyntaxException("expected expression");
 		}
 		return false;
 	}
@@ -744,23 +754,22 @@ bool parseFuncCallParam()
 
 bool parseFuncCall()
 {
-	const std::string& funcName = nextToken(false);
+	const std::string& funcName = nextToken();
 	if (std::regex_match(funcName, NAME_RE) && keywords.count(funcName) == 0)
 	{
 		tokenNum++;
-		if (nextToken(false) == "(")
+		if (nextToken() == "(")
 		{
-			tokenNum++;
-			uncommittedTrans += "_" + funcName + "(";
+			appendAndAdvance("_" + funcName + "(");
 			int numParams = parseCommaSep(parseFuncCallParam);
 
-			if (nextToken(true) == ")")
+			if (nextToken() == ")")
 			{
+				appendAndAdvance(")");
 				functionsUsed.insert({ funcName, numParams });
-				uncommittedTrans += ")";
 				return true;
 			}
-			parserError("expected closing parenthesis for function call");
+			throw SyntaxException("expected closing parenthesis for function call");
 		}
 		tokenNum--;
 		return false;
@@ -772,27 +781,24 @@ bool parseVar()
 {
 	if (parseVarName(VarParseMode::mustExist) != VarStatus::invalid)
 	{
-		while (nextToken(false) == "[")
+		while (nextToken() == "[")
 		{
-			tokenNum++;
-			uncommittedTrans += "[";
+			appendAndAdvance("[");
 			if (parseExpr())
 			{
-				if (nextToken(true) == "]")
+				if (nextToken() == "]")
 				{
-					uncommittedTrans += "]";
+					appendAndAdvance("]");
 					continue;
 				}
-				parserError("expected closing bracket");
+				throw SyntaxException("expected closing bracket");
 			}
-			parserError("expected expression inside bracket");
+			throw SyntaxException("expected expression inside bracket");
 		}
-
 		return true;
 	}
 	return false;
 }
-
 
 
 //  +-------------------------+
@@ -812,9 +818,7 @@ bool parseExpr(ParsedType& t)
 
 bool parseTerm(ParsedType& t)
 {
-	int init = tokenNum;
-	ParsedType type;
-	const std::string& token = nextToken(true);
+	const std::string& token = nextToken();
 
 	// check for unary prefix operators such as -, not
 	/*if (token == "-") TODO decide whether to remove
@@ -826,55 +830,51 @@ bool parseTerm(ParsedType& t)
 			{
 				return t = type, true;
 			}
-			parserError("cannot apply '-' unary operator to non-numeric item");
+			throw SyntaxException("cannot apply '-' unary operator to non-numeric item");
 		}
-		parserError("expected expression after '-'");
+		throw SyntaxException("expected expression after '-'");
 	}*/
 	if (token == "not")
 	{
-		uncommittedTrans += "!";
-		if (parseExpr(type))
+		appendAndAdvance("!");
+		if (parseExpr(t))
 		{
-			if (type == ParsedType::boolean || type == ParsedType::any)
+			if (t == ParsedType::boolean || t == ParsedType::any)
 			{
-				return t = type, true;
+				return true;
 			}
-			parserError("cannot apply 'not' operator to non-boolean item");
+			throw SyntaxException("cannot apply 'not' operator to non-boolean item");
 		}
-		parserError("expected expression after 'not'");
+		throw SyntaxException("expected expression after 'not'");
 	}
 
 	// check for parenthesized expression
 	if (token == "(")
 	{
-		uncommittedTrans += "(";
-		if (parseExpr(type))
+		appendAndAdvance("(");
+		if (parseExpr(t))
 		{
-			if (nextToken(true) == ")")
+			if (nextToken() == ")")
 			{
-				uncommittedTrans += ")";
-				return t = type, true;
+				appendAndAdvance(")");
+				return true;
 			}
-			return tokenNum = init, false;
+			throw SyntaxException("expected closing parenthesis");
 		}
-		return tokenNum = init, false;
+		return false;
 	}
 
-	tokenNum = init;
 	return parseVal(t);
 }
 
 bool parseVal(ParsedType& t)
 {
-	int init = tokenNum;
-	std::string initStr = uncommittedTrans;
-
-	const std::string& token = nextToken(true);
+	const std::string& token = nextToken();
 
 	// check for boolean
 	if (token == "true" || token == "false")
 	{
-		uncommittedTrans += token;
+		appendAndAdvance(token);
 		t = ParsedType::boolean;
 		return true;
 	}
@@ -882,7 +882,7 @@ bool parseVal(ParsedType& t)
 	// check for number
 	if (std::regex_match(token, NUMBER_RE))
 	{
-		uncommittedTrans += token;
+		appendAndAdvance(token);
 		t = ParsedType::number;
 		return true;
 	}
@@ -890,146 +890,141 @@ bool parseVal(ParsedType& t)
 	// check for string
 	if (std::regex_match(token, STRING_RE))
 	{
-		uncommittedTrans += "String(" + token + ")";
+		appendAndAdvance("std::string(" + token + ")");
 		t = ParsedType::string;
+		return true;
+	}
+
+	// check for null value
+	if (token == "null")
+	{
+		appendAndAdvance("null");
+		t = ParsedType::null;
 		return true;
 	}
 
 	// check for list
 	if (token == "[")
 	{
-		uncommittedTrans += "List{ ";
+		appendAndAdvance("List{ ");
 		parseCommaSep([] { return parseExpr(); });
-		if (nextToken(true) == "]")
+		if (nextToken() == "]")
 		{
+			if (nextTokenScope() < currStatementScope)
+			{
+				throw SyntaxException("list closing brace indentation may not be less than indentation of opening brace");
+			}
 			uncommittedTrans += " }";
 			t = ParsedType::list;
 			return true;
 		}
-		parserError("expected end of list");
+		throw SyntaxException("expected closing ']'");
 	}
 
 	// check for map
 	if (token == "{")
 	{
-		uncommittedTrans += "Map{ ";
-		// flag to keep track of whether another entry is needed (after comma)
-		bool lastComma = false;
-
+		appendAndAdvance("Map{ ");
 		parseCommaSep(parseMapEntry);
 
-		if (nextToken(true) == "}")
+		if (nextToken() == "}")
 		{
-			uncommittedTrans += " }";
+			if (nextTokenScope() < currStatementScope)
+			{
+				throw SyntaxException("map closing brace indentation may not be less than indentation of opening brace");
+			}
+			appendAndAdvance(" }");
 			t = ParsedType::map;
 			return true;
 		}
-		parserError("expected closing curly brace");
-	}
-
-	// check for null value
-	if (token == "null")
-	{
-		uncommittedTrans += token;
-		t = ParsedType::null;
-		return true;
+		throw SyntaxException("expected closing '}'");
 	}
 
 	// check if this is valid variable-type expression indicating 'any' type
-	tokenNum = init;
 	if (parseFuncCall() || parseVar())
 	{
 		t = ParsedType::any;
 		return true;
 	}
 
-	// failed all checks, this is not a value
-	uncommittedTrans = initStr;
-	tokenNum = init;
 	return false;
 }
 
-void checkValidBinary(const std::string binaryOp, const std::string transBinOp,
-	ParsedType& leftType, const std::map<ParsedType, std::set<ParsedType>>& allowedOps)
+typedef std::map<ParsedType, std::set<ParsedType>> Operations;
+
+void checkBinary(const std::string translatedBinOp, ParsedType& leftType, const Operations& allowedOps)
 {
-	uncommittedTrans += " " + transBinOp + " ";
+	const std::string& sudohBinOp = nextToken();
+	appendAndAdvance(" " + translatedBinOp + " ");
+
+	if (nextTokenScope() <= currStatementScope)
+	{
+		throw SyntaxException("subsequent lines of multiline arithmetic expression or compound "
+			"condition must be indented above level of first line");
+	}
 
 	ParsedType rightType;
-	if (!parseTerm(rightType))
+	if (parseTerm(rightType))
 	{
-		return;
-	}
-
-	if (leftType == ParsedType::any)
-	{
-		parseExprBinary(leftType);
-		return;
-	}
-
-	for (const auto& e : allowedOps)
-	{
-		if (leftType == e.first && (rightType == ParsedType::any || e.second.count(rightType) != 0))
+		if (leftType == ParsedType::any || rightType == ParsedType::any)
 		{
 			parseExprBinary(leftType);
 			return;
 		}
-	}
 
-	parserError("'" + binaryOp + "' cannot be applied to types " +
-		typeToString(leftType) + " and " + typeToString(rightType));
+		for (const auto& e : allowedOps)
+		{
+			if (leftType == e.first && e.second.count(rightType) != 0)
+			{
+				parseExprBinary(leftType);
+				return;
+			}
+		}
+
+		throw SyntaxException("'" + sudohBinOp + "' cannot be applied to types " +
+			typeToString(leftType) + " and " + typeToString(rightType));
+	}
 }
 
 void parseExprBinary(ParsedType& type)
 {
-	int init = tokenNum;
-
-	typedef std::map<ParsedType, std::set<ParsedType>> OpMap;
-
-	static const std::set<ParsedType> all = {
+	static const std::set<ParsedType> ALL = {
 		ParsedType::number, ParsedType::boolean, ParsedType::string,
 		ParsedType::list, ParsedType::map, ParsedType::null
 	};
 
-	// lists of valid type pairs for each binary operation
-	static const OpMap plus = {
-		{ ParsedType::number, { ParsedType::number } },
-		{ ParsedType::string, all },
-		{ ParsedType::list, all }
-	};
-	static const OpMap arithmetic = { { ParsedType::number, { ParsedType::number } } };
-	static const OpMap boolOps = { { ParsedType::boolean, { ParsedType::boolean } } };
-	static const OpMap comparisonOps = {
-		{ ParsedType::number, { ParsedType::number } },
-		{ ParsedType::boolean, { ParsedType::boolean } },
-		{ ParsedType::string, { ParsedType::string } },
-		{ ParsedType::list, { ParsedType::list } },
-		{ ParsedType::map, { ParsedType::map } }
-	};
-
-	const std::string& token = nextToken(true);
-	ParsedType rightType;
+	const std::string& token = nextToken();
 	if (token == "+")
 	{
-		checkValidBinary(token, token, type, plus);
+		checkBinary(token, type, {
+			{ ParsedType::number, { ParsedType::number } },
+			{ ParsedType::string, ALL },
+			{ ParsedType::list, ALL }
+		});
 	}
 	else if (token == "-" || token == "*" || token == "/" || token == "mod")
 	{
-		checkValidBinary(token, token == "mod" ? "%" : token, type, arithmetic);
+		checkBinary(token == "mod" ? "%" : token, type, {
+			{ ParsedType::number, { ParsedType::number } }
+		});
 	}
 	else if (token == "and" || token == "or")
 	{
-		checkValidBinary(token, token == "and" ? "&&" : "||", type, boolOps);
+		checkBinary(token == "and" ? "&&" : "||", type, {
+			{ ParsedType::boolean, { ParsedType::boolean } }
+		});
 	}
 	else if (token == "=" || token == "!=" || token == "<" || token == "<=" || token == ">" || token == ">=")
 	{
 		// TODO make this change the type to boolean somehow
-		// TODO idea- need higher precedence for comparison than others (to parse 1+2=2+2 correctly for instance)
-		checkValidBinary(token, token == "=" ? "==" : token, type, comparisonOps);
-	}
-	else
-	{
-		// epsilon also accepted
-		tokenNum = init;
+		// idea- need higher precedence for comparison than others (to parse 1+2=2+2 correctly for instance)
+		checkBinary(token == "=" ? "==" : token, type, {
+			{ ParsedType::number, { ParsedType::number } },
+			{ ParsedType::boolean, { ParsedType::boolean } },
+			{ ParsedType::string, { ParsedType::string } },
+			{ ParsedType::list, { ParsedType::list } },
+			{ ParsedType::map, { ParsedType::map } }
+		});
 	}
 }
 
@@ -1041,16 +1036,19 @@ int parseCommaSep(bool (*checkFunc)())
 	{
 		numItems++;
 		// loop to handle further comma-separated items
-		while (nextToken(false) == ",")
+		while (nextToken() == ",")
 		{
-			uncommittedTrans += ", ";
-			tokenNum++;
+			appendAndAdvance(", ");
+			if (nextTokenScope() <= currStatementScope)
+			{
+				throw SyntaxException("subsequent lines in multiline comma-separated list must be indented higher than original line");
+			}
 			if (checkFunc())
 			{
 				numItems++;
 				continue;
 			}
-			parserError("expected item after comma");
+			throw SyntaxException("expected item after comma");
 		}
 	}
 

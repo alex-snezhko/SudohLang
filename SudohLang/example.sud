@@ -25,3 +25,11 @@ bob <- { "name" <- "bob", "friends" <- {} }
 alex <- { "name" <- "alex", "friends" <- { bob } }
 
 friends <- alex["friends"]
+
+if <- 2 then
+	cout <- "hello"
+
+a[1 1 1 <- "hello"
+for each 3 3 in a do
+
+map <- { <- "hello" "a" <- 1 }

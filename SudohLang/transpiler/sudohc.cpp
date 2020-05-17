@@ -7,16 +7,7 @@
 
 void analyze(std::ifstream& file)
 {
-	std::stringstream contentsStream;
-	contentsStream << file.rdbuf();
-
-	// add space at end to help tokenize later
-	std::string contents = contentsStream.str() + " ";
-
-	std::string transpiled;
-	int tokenBrokenAt;
-	tokenBrokenAt = parse(contents, transpiled);
-	std::cout << transpiled;
+	
 }
 
 int main(int argc, char** argv)
@@ -42,8 +33,22 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	analyze(file);
+	std::stringstream contentsStream;
+	contentsStream << file.rdbuf();
 
+	// add space at end to help tokenize later
+	std::string contents = contentsStream.str() + " ";
 	file.close();
+
+	std::string transpiled;
+	if (parse(contents, transpiled))
+	{
+		std::cout << transpiled;
+		std::ofstream out;
+		out.open("sudoh.cpp");
+		out << transpiled;
+		out.close();
+	}
+
 	return 0;
 }

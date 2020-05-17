@@ -5,8 +5,8 @@
 struct Token
 {
 	int lineNum;
-	int fileCharNum;
-	std::string token;
+	size_t fileCharNum;
+	const std::string tokenString;
 };
 
 class SyntaxException : public std::exception
@@ -21,4 +21,5 @@ public:
 };
 
 std::vector<Token> tokenize(const std::string& line);
-int parse(const std::string& contents, std::string& transpiled);
+const std::string END = "";
+bool parse(const std::string& contents, std::string& transpiled);

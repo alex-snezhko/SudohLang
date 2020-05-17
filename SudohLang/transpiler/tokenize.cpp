@@ -12,10 +12,11 @@ std::vector<Token> tokenize(const std::string& line)
 
 	std::vector<Token> tokens;
 
-	int idxBeginToken = 0;
 	bool beginLine = true;
 	int lineNum = 1;
-	for (int curr = 0; curr < line.length(); curr++)
+
+	size_t idxBeginToken = 0;
+	for (size_t curr = 0; curr < line.length(); curr++)
 	{
 		// check if the token at index is a delimiter
 		const std::string* delim = nullptr;
@@ -39,8 +40,6 @@ std::vector<Token> tokenize(const std::string& line)
 		{
 			tokens.push_back({ lineNum, curr, line.substr(idxBeginToken, curr - idxBeginToken) });
 		}
-
-
 
 		// add delimiter as a token as well (if it is not space)
 		if (*delim != " ")
@@ -70,7 +69,7 @@ std::vector<Token> tokenize(const std::string& line)
 			else if (*delim == "//")
 			{
 				size_t end = line.find('\n', curr);
-				tokens.push_back({ lineNum, curr, line.substr(curr, end) });
+				tokens.push_back({ lineNum, curr, line.substr(curr, end - curr) });
 				curr = end;
 			}
 			else
@@ -90,6 +89,8 @@ std::vector<Token> tokenize(const std::string& line)
 
 		idxBeginToken = curr + 1;
 	}
+
+	tokens.push_back({ lineNum, line.length(), END });
 
 	return tokens;
 }

@@ -1,5 +1,4 @@
-#include "variable.h"
-#include "common.h"
+#include "sudoh.h"
 
 // +---------------------------+
 // |   Number implementation   |

@@ -1,5 +1,5 @@
-#include "variable.h"
-#include "common.h"
+#include "sudoh.h"
+#include <string>
 
 std::string Variable::typeString() const
 {
