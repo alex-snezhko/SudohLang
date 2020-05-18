@@ -38,7 +38,7 @@ std::vector<Token> tokenize(const std::string& line)
 		// add new token
 		if (curr > idxBeginToken)
 		{
-			tokens.push_back({ lineNum, curr, line.substr(idxBeginToken, curr - idxBeginToken) });
+			tokens.push_back({ lineNum, idxBeginToken, line.substr(idxBeginToken, curr - idxBeginToken) });
 		}
 
 		// add delimiter as a token as well (if it is not space)
@@ -60,17 +60,15 @@ std::vector<Token> tokenize(const std::string& line)
 				// didnt find closing quote then string is mal-formed
 				if (close == line.length())
 				{
-					throw SyntaxException("malformed string");
+					throw SyntaxException("malformed string"); // TODO
 				}
 
-				tokens.push_back({ lineNum, curr, line.substr(curr, close - curr + 1) });
+				tokens.push_back({ lineNum, idxBeginToken, line.substr(curr, close - curr + 1) });
 				curr = close;
 			}
 			else if (*delim == "//")
 			{
-				size_t end = line.find('\n', curr);
-				tokens.push_back({ lineNum, curr, line.substr(curr, end - curr) });
-				curr = end;
+				curr = line.find('\n', curr);
 			}
 			else
 			{
@@ -80,7 +78,7 @@ std::vector<Token> tokenize(const std::string& line)
 				bool tabAfterBegin = *delim == "\t" && !beginLine;
 				if (!tabAfterBegin)
 				{
-					tokens.push_back({ lineNum, curr, *delim });
+					tokens.push_back({ lineNum, idxBeginToken, *delim });
 				}
 
 				curr += delim->length() - 1;

@@ -11,25 +11,19 @@ function sort(arr)
 				swap(arr[j], arr[j + 1])
 
 arr <- [3, 10, 4, 5, 2, 7, 8, 0, 1]
+arr[0] <- "hello
+
 repeat
 	cout <- "hello"
 while true != false
 sort(arr)
-for i <- 0 to length(arr) - 1 do
-	print(arr[i])
+for each e in arr do
+	print(e)
 
 
 
 
-bob <- { "name" <- "bob", "friends" <- {} }
-alex <- { "name" <- "alex", "friends" <- { bob } }
+bob <- { "name" <- "bob", "friends" <- [] }
+alex <- { "name" <- "alex", "friends" <- [ bob ] }
 
 friends <- alex["friends"]
-
-if <- 2 then
-	cout <- "hello"
-
-a[1 1 1 <- "hello"
-for each 3 3 in a do
-
-map <- { <- "hello" "a" <- 1 }

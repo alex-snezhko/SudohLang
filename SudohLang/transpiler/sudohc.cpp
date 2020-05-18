@@ -44,10 +44,10 @@ int main(int argc, char** argv)
 	if (parse(contents, transpiled))
 	{
 		std::cout << transpiled;
-		std::ofstream out;
+		/*std::ofstream out;
 		out.open("sudoh.cpp");
 		out << transpiled;
-		out.close();
+		out.close();*/
 	}
 
 	return 0;

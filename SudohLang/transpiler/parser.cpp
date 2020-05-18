@@ -31,7 +31,7 @@ const std::regex STRING_RE = std::regex("\".*\"");
 
 const std::set<std::string> keywords = {
 	"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while",
-	"until", "for", "return", "break", "continue", "mod", "function", "and", "or" // TODO complete set
+	"until", "for", "each", "return", "break", "continue", "mod", "function", "and", "or" // TODO complete set
 };
 
 std::vector<Token> tokens;
@@ -77,7 +77,7 @@ void parseBlock(std::set<bool (*)()>&);
 bool parseStructure(bool (*&)(), void (*&)(int, std::set<bool (*)()>&));
 bool parseAssignment();
 bool parseFuncCall();
-bool parseVar();
+bool parseVar(bool);
 ParsedType discard;
 bool parseExpr(ParsedType & = discard);
 bool parseTerm(ParsedType&);
@@ -103,7 +103,10 @@ void appendAndAdvance(const std::string append)
 int nextTokenScope()
 {
 	int scope = currStatementScope;
-
+	if (scope == -1)
+	{
+		return 0;
+	}
 	const std::string* token = &nextToken();
 	while (*token == "\n" || *token == "\t")
 	{
@@ -132,14 +135,13 @@ int nextTokenScope()
 // returns token number broken at
 bool parse(const std::string& contents, std::string& transpiled)
 {
-	tokenNum = 0;
 	try
 	{
 		tokens = tokenize(contents);
+		tokenNum = 0;
 		inFunction = false;
 
-		nextTokenScope();
-		if (currStatementScope != 0)
+		if (nextTokenScope() != 0)
 		{
 			throw SyntaxException("base scope must not be indented");
 		}
@@ -201,13 +203,12 @@ bool parse(const std::string& contents, std::string& transpiled)
 		}
 		std::string line = contents.substr(beginLine, endLine - beginLine);
 
-		std::cout << "Compiler error on line " << tokens[tokenNum].lineNum << ": " << e.what() << std::endl
-			<< "\t" << line << std::endl << "\t";
+		std::cout << "Syntax error on line " << tokens[tokenNum].lineNum << ": " << e.what() << "\n\t" << line << "\n\t";
 		for (int i = 0; i < fileCharIdx - beginLine; i++)
 		{
 			std::cout << " ";
 		}
-		std::cout << "^" << std::endl;
+		std::cout << "^\nAborting compilation.\n";
 		return false;
 	}
 }
@@ -293,7 +294,7 @@ void parseBlock(std::set<bool (*)()>& extraRules)
 	commitLine();
 
 	int blockScope = currStatementScope + 1;
-	nextTokenScope();
+	currStatementScope = nextTokenScope();
 	if (currStatementScope < blockScope)
 	{
 		throw SyntaxException("empty block not allowed");
@@ -303,7 +304,7 @@ void parseBlock(std::set<bool (*)()>& extraRules)
 
 	while (currStatementScope == blockScope && parseNextLine(extraRules))
 	{
-		nextTokenScope();
+		currStatementScope = nextTokenScope();
 	}
 
 	if (inFunction && blockScope == 1)
@@ -326,72 +327,96 @@ void parseBlock(std::set<bool (*)()>& extraRules)
 	varsInScopeN.pop_back();
 }
 
-enum struct VarStatus { invalid, newVar, existingVar };
-enum struct VarParseMode { mayBeNew, mustExist, functionParam };
+enum struct VarParseMode { mayBeNew, mustExist, functionParam, forVar, forEachVar };
+
+bool varExists(const std::string& name)
+{
+	for (const std::set<std::string>& e : varsInScopeN)
+	{
+		if (e.count(name) != 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 // modes:	can be new (normal variable assignment)
 //			cannot be new (using variable)
 //			will accept any (function params) (do not search scope 0)
-VarStatus parseVarName(VarParseMode mode)
+bool parseVarName(VarParseMode mode)
 {
 	const std::string& name = nextToken();
 
 	// do not accept keyword as valid variable name
 	if (std::regex_match(name, NAME_RE) && keywords.count(name) == 0)
 	{
-		// keep buffer of function parameters to then inject into scope when function is entered
-		static std::vector<std::string> functionParams;
+		// keep buffer of variables to then inject into scope when specified scope is entered;
+		// used for function params and 'for' loop iteration variables
+		static std::vector<std::string> varsToInject;
+		static int injectionScope;
 
-		// add variable to functionParams buffer if this is a function param
-		if (mode == VarParseMode::functionParam)
+		if (currStatementScope == injectionScope && !varsToInject.empty())
 		{
-			functionParams.push_back(name);
+			for (const std::string& e : varsToInject)
+			{
+				varsInScopeN[currStatementScope].insert(e);
+			}
+			varsToInject.clear();
+		}
+
+		switch (mode)
+		{
+		case VarParseMode::mayBeNew:
+			if (varExists(name))
+			{
+				appendAndAdvance("_" + name);
+				break;
+			}
+			varsInScopeN[currStatementScope].insert(name);
+			appendAndAdvance("Variable _" + name);
+			break;
+		case VarParseMode::mustExist:
+			if (varExists(name))
+			{
+				appendAndAdvance("_" + name);
+				break;
+			}
+			throw SyntaxException("use of undeclared variable " + name);
+
+		case VarParseMode::forVar:
+			if (varExists(name))
+			{
+				appendAndAdvance("_" + name);
+				break;
+			}
+			injectionScope = currStatementScope + 1;
+			varsToInject.push_back(name);
+			appendAndAdvance("Variable _" + name);
+			break;
+		case VarParseMode::forEachVar:
+			if (varExists(name))
+			{
+				throw SyntaxException("'for each' iteration variable must be a new variable");
+			}
+		case VarParseMode::functionParam:
+			injectionScope = currStatementScope + 1;
+			varsToInject.push_back(name);
 			appendAndAdvance("Variable& _" + name);
-			return VarStatus::newVar;
+			break;
 		}
-		else
-		{
-			// inject function parameters into current scope if function has just been entered
-			if (currStatementScope == 1 && !functionParams.empty())
-			{
-				for (const std::string& e : functionParams)
-				{
-					varsInScopeN[1].insert(e);
-				}
-				functionParams.clear();
-			}
-
-			// find whether a variable with this name already exists
-			bool exists = false;
-			for (const std::set<std::string>& e : varsInScopeN)
-			{
-				if (e.count(name) != 0)
-				{
-					exists = true;
-					break;
-				}
-			}
-
-			if (!exists)
-			{
-				if (mode == VarParseMode::mustExist)
-				{
-					throw SyntaxException("use of undeclared variable " + name);
-				}
-				varsInScopeN[currStatementScope].insert(name);
-				appendAndAdvance("Variable _" + name);
-				return VarStatus::newVar;
-			}
-			appendAndAdvance("_" + name);
-			return VarStatus::existingVar;
-		}
+		return true;
 	}
-	return VarStatus::invalid;
+	return false;
 }
 
 bool parseMapEntry()
 {
 	uncommittedTrans += "{ ";
+	if (nextToken() == "}")
+	{
+		return false;
+	}
 	if (parseExpr())
 	{
 		if (nextToken() == "<-")
@@ -554,7 +579,7 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 		const std::string& forVar = nextToken();
 		// for i <- [n] (down)? to [n] do
 		//     ^
-		if (parseVarName(VarParseMode::mayBeNew) != VarStatus::invalid)
+		if (parseVarName(VarParseMode::forVar))
 		{
 			// for i <- [n] (down)? to [n] do
 			//       ^
@@ -605,10 +630,10 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 		//     ^
 		if (nextToken() == "each")
 		{
-			appendAndAdvance("Variable& ");
+			tokenNum++;
 			// for each e in [x] do
 			//          ^
-			if (parseVarName(VarParseMode::mayBeNew) != VarStatus::invalid)
+			if (parseVarName(VarParseMode::forEachVar))
 			{
 				// for each e in [x] do
 				//            ^
@@ -668,7 +693,7 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 			{
 				appendAndAdvance("(");
 				inFunction = true;
-				int numParams = parseCommaSep([] { return parseVarName(VarParseMode::functionParam) != VarStatus::invalid; });
+				int numParams = parseCommaSep([] { return parseVarName(VarParseMode::functionParam); });
 
 				if (nextToken() == ")")
 				{
@@ -693,29 +718,10 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 
 bool parseAssignment()
 {
-	// determine whether or not this is a valid lvalue
-	VarStatus status = parseVarName(VarParseMode::mayBeNew); // TODO maybe only add if assignment parse passes
-	if (status != VarStatus::invalid)
+	const std::string& name = nextToken();
+	if (std::regex_match(name, NAME_RE) && keywords.count(name) == 0)
 	{
-		while (nextToken() == "[")
-		{
-			if (status == VarStatus::newVar)
-			{
-				throw SyntaxException("cannot access map value of undefined variable");
-			}
-
-			appendAndAdvance("[");
-			if (parseExpr())
-			{
-				if (nextToken() == "]")
-				{
-					appendAndAdvance("]");
-					continue;
-				}
-				throw SyntaxException("expected ']'");
-			}
-			throw SyntaxException("expected expression inside bracket");
-		}
+		parseVar(true);
 
 		if (nextToken() == "<-")
 		{
@@ -777,18 +783,23 @@ bool parseFuncCall()
 	return false;
 }
 
-bool parseVar()
+bool parseVar(bool lvalue)
 {
-	if (parseVarName(VarParseMode::mustExist) != VarStatus::invalid)
+	bool exists = varExists(nextToken());
+	if (parseVarName(lvalue ? VarParseMode::mayBeNew : VarParseMode::mustExist))
 	{
 		while (nextToken() == "[")
 		{
-			appendAndAdvance("[");
+			if (!exists)
+			{
+				throw SyntaxException("cannot get map value of undeclared variable");
+			}
+			appendAndAdvance(lvalue ? "[" : "at(");
 			if (parseExpr())
 			{
 				if (nextToken() == "]")
 				{
-					appendAndAdvance("]");
+					appendAndAdvance(lvalue ? "]" : ")");
 					continue;
 				}
 				throw SyntaxException("expected closing bracket");
@@ -914,7 +925,7 @@ bool parseVal(ParsedType& t)
 			{
 				throw SyntaxException("list closing brace indentation may not be less than indentation of opening brace");
 			}
-			uncommittedTrans += " }";
+			appendAndAdvance(" }");
 			t = ParsedType::list;
 			return true;
 		}
@@ -941,7 +952,7 @@ bool parseVal(ParsedType& t)
 	}
 
 	// check if this is valid variable-type expression indicating 'any' type
-	if (parseFuncCall() || parseVar())
+	if (parseFuncCall() || parseVar(false))
 	{
 		t = ParsedType::any;
 		return true;
@@ -957,7 +968,7 @@ void checkBinary(const std::string translatedBinOp, ParsedType& leftType, const 
 	const std::string& sudohBinOp = nextToken();
 	appendAndAdvance(" " + translatedBinOp + " ");
 
-	if (nextTokenScope() <= currStatementScope)
+	if (nextToken() == "\n" && nextTokenScope() <= currStatementScope)
 	{
 		throw SyntaxException("subsequent lines of multiline arithmetic expression or compound "
 			"condition must be indented above level of first line");
@@ -1039,9 +1050,10 @@ int parseCommaSep(bool (*checkFunc)())
 		while (nextToken() == ",")
 		{
 			appendAndAdvance(", ");
-			if (nextTokenScope() <= currStatementScope)
+			if (nextToken() == "\n" && nextTokenScope() <= currStatementScope)
 			{
-				throw SyntaxException("subsequent lines in multiline comma-separated list must be indented higher than original line");
+				throw SyntaxException("subsequent lines in multiline comma-separated list must be "
+					"indented at same level or higher than original line");
 			}
 			if (checkFunc())
 			{
