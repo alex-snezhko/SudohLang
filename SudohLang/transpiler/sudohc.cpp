@@ -3,13 +3,6 @@
 #include <sstream>
 #include "sudohc.h"
 
-
-
-void analyze(std::ifstream& file)
-{
-	
-}
-
 int main(int argc, char** argv)
 {
 	/*if (argc != 2)
@@ -26,7 +19,7 @@ int main(int argc, char** argv)
 	}*/
 
 	std::ifstream file;
-	file.open("example.sud");
+	file.open("linked.sud");
 	if (!file)
 	{
 		std::cout << "invalid file\n";
@@ -44,10 +37,10 @@ int main(int argc, char** argv)
 	if (parse(contents, transpiled))
 	{
 		std::cout << transpiled;
-		/*std::ofstream out;
+		std::ofstream out;
 		out.open("sudoh.cpp");
 		out << transpiled;
-		out.close();*/
+		out.close();
 	}
 
 	return 0;

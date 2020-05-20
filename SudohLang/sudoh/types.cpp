@@ -34,11 +34,22 @@ Number Number::operator/(const Number& other) const
 {
 	if (other.getFloatVal() == 0)
 	{
-		throw SudohRuntimeException("division by zero");
+		runtimeException("division by zero");
 	}
 	return isInt && other.isInt && (intVal % other.intVal == 0) ?
 		Number(intVal / other.intVal) :
 		Number(getFloatVal() / other.getFloatVal());
+}
+
+Number Number::operator%(const Number& other) const
+{
+	if (other.getFloatVal() == 0)
+	{
+		runtimeException("division by zero");
+	}
+	return isInt && other.isInt ?
+		Number(intVal % other.intVal) :
+		Number(fmod(getFloatVal(), other.getFloatVal()));
 }
 
 bool Number::operator==(const Number& other) const
@@ -67,6 +78,27 @@ bool Number::operator<=(const Number& other) const
 		getFloatVal() <= other.getFloatVal();
 }
 
-Ref::Ref() : refCount(1) {}
-ListRef::ListRef(List l) : Ref(), listVal(l) {}
-MapRef::MapRef(Map m) : Ref(), mapVal(m) {}
+class String
+{
+	std::string str;
+	List chars;
+
+	String(std::string s) : str(s), chars(s.length())
+	{
+		for (int i = 0; i < s.length(); i++)
+		{
+			chars[i] = s[i];
+		}
+	}
+
+	int size() const
+	{
+		return str.size();
+	}
+
+	Variable& operator[](const Variable& index)
+	{
+		//int i = index.val.numVal.intVal;
+		//Variable& t = chars[i];
+	}
+};

@@ -3,10 +3,7 @@ function List()
 	return list
 
 function addNode(list, val)
-	node <- {
-		"val" <- val,
-		"next" <- null
-	}
+	node <- {"val" <- val,"next" <- null}
 
 	if list["size"] = 0 then
 		list["head"] <- node

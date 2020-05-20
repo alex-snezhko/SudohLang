@@ -1,5 +1,24 @@
 #include "sudoh.h"
 #include <string>
+#include <iostream>
+#include <memory>
+
+void runtimeException(const std::string msg)
+{
+	std::string output = "Runtime exception: " + msg + "; terminating program";
+	std::cout << "\n+";
+	for (int i = 0; i < output.length() + 4; i++)
+	{
+		std::cout << "-";
+	}
+	std::cout << "+\n|  " << output << "  |\n+";
+	for (int i = 0; i < output.length() + 4; i++)
+	{
+		std::cout << "-";
+	}
+	std::cout << "+\n";
+	exit(0);
+}
 
 std::string Variable::typeString() const
 {
@@ -24,17 +43,18 @@ Variable::Val::Val() : boolVal(false) {}
 Variable::Val::Val(Number val) : numVal(val) {}
 Variable::Val::Val(bool val) : boolVal(val) {}
 Variable::Val::Val(std::string val) : stringVal(val) {}
-Variable::Val::Val(Ref* val) : sharedRef(val) {}
+Variable::Val::Val(Ref<List>* val) : listRef(val) {}
+Variable::Val::Val(Ref<Map>* val) : mapRef(val) {}
 Variable::Val::~Val() {}
 
 Variable::Variable() : type(Type::nul) {}
-Variable::Variable(int n) : type(Type::number), val(n) {}
-Variable::Variable(double n) : type(Type::number), val(n) {}
+Variable::Variable(int n) : type(Type::number), val(Number(n)) {}
+Variable::Variable(double n) : type(Type::number), val(Number(n)) {}
 Variable::Variable(Number n) : type(Type::number), val(n) {}
 Variable::Variable(bool b) : type(Type::boolean), val(b) {}
 Variable::Variable(std::string s) : type(Type::string), val(s) {}
-Variable::Variable(List l) : type(Type::list), val(new ListRef(l)) {}
-Variable::Variable(Map m) : type(Type::map), val(new MapRef(m)) {}
+Variable::Variable(List l) : type(Type::list), val(new Ref<List>(l)) {}
+Variable::Variable(Map m) : type(Type::map), val(new Ref<Map>(m)) {}
 
 Variable::Variable(const Variable& other) : type(other.type) { setValue(other); }
 
@@ -51,23 +71,33 @@ void Variable::setValue(const Variable& other)
 		val.boolVal = other.val.boolVal;
 		break;
 	case Type::string:
-		val.stringVal = other.val.stringVal;
+		new(&val.stringVal) std::string(other.val.stringVal);
 		break;
 	case Type::list:
+		val.listRef = other.val.listRef;
+		val.listRef->refCount++;
+		break;
 	case Type::map:
-		val.sharedRef = other.val.sharedRef;
-		val.sharedRef->refCount++;
+		val.mapRef = other.val.mapRef;
+		val.mapRef->refCount++;
 		break;
 	}
 }
 
 void Variable::freeMem()
 {
-	if (type == Type::list || type == Type::map)
+	if (type == Type::list)
 	{
-		if (--val.sharedRef->refCount == 0)
+		if (--val.listRef->refCount == 0)
 		{
-			delete val.sharedRef;
+			delete val.listRef;
+		}
+	}
+	if (type == Type::map)
+	{
+		if (--val.mapRef->refCount == 0)
+		{
+			delete val.mapRef;
 		}
 	}
 	else if (type == Type::string)
@@ -91,9 +121,37 @@ std::string Variable::toString() const
 	case Type::string:
 		return val.stringVal;
 	case Type::list:
-		return "list";//TODO
+	{
+		std::string contents = "[ ";
+		bool first = true;
+		for (const Variable& e : val.listRef->val)
+		{
+			if (!first)
+			{
+				contents += ", ";
+			}
+			contents += e.toString();
+			first = false;
+		}
+		contents += " ]";
+		return contents;
+	}
 	case Type::map:
-		return "map";//TODO
+	{
+		std::string contents = "{ ";
+		bool first = true;
+		for (std::pair<const Variable, Variable>& e : val.mapRef->val)
+		{
+			if (!first)
+			{
+				contents += ", ";
+			}
+			contents += e.first.toString() + " <- " + e.second.toString();
+			first = false;
+		}
+		contents += " }";
+		return contents;
+	}
 	case Type::nul:
 		return "null";
 	}
@@ -104,13 +162,13 @@ int Variable::length() const
 	switch (type)
 	{
 	case Type::list:
-		return (int)((ListRef*)val.sharedRef)->listVal.size();
+		return val.listRef->val.size();
 	case Type::map:
-		return (int)((MapRef*)val.sharedRef)->mapVal.size();
+		return val.mapRef->val.size();
 	case Type::string:
-		return (int)val.stringVal.length();
+		return val.stringVal.length();
 	}
-	throw SudohRuntimeException("cannot take length of type " + typeString());
+	runtimeException("cannot take length of type " + typeString());
 }
 
 Variable Variable::operator+(const Variable& other) const
@@ -131,10 +189,14 @@ Variable Variable::operator+(const Variable& other) const
 	case Type::string:
 		return val.stringVal + other.toString();
 	case Type::list:
-		return Variable();//TODO
+	{
+		List newList = val.listRef->val;
+		newList.push_back(other);
+		return newList;
+	}
 	}
 
-	throw SudohRuntimeException("illegal operation '+' between types " + typeString() + " and " + other.typeString());
+	runtimeException("illegal operation '+' between types " + typeString() + " and " + other.typeString());
 }
 
 Variable Variable::operator-(const Variable& other) const
@@ -144,7 +206,37 @@ Variable Variable::operator-(const Variable& other) const
 		return val.numVal - other.val.numVal;
 	}
 
-	throw SudohRuntimeException("illegal operation '-' between types " + typeString() + " and " + other.typeString());
+	runtimeException("illegal operation '-' between types " + typeString() + " and " + other.typeString());
+}
+
+Variable Variable::operator*(const Variable& other) const
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		return val.numVal * other.val.numVal;
+	}
+
+	runtimeException("illegal operation '*' between types " + typeString() + " and " + other.typeString());
+}
+
+Variable Variable::operator/(const Variable& other) const
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		return val.numVal / other.val.numVal;
+	}
+
+	runtimeException("illegal operation '/' between types " + typeString() + " and " + other.typeString());
+}
+
+Variable Variable::operator%(const Variable& other) const
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		return val.numVal % other.val.numVal;
+	}
+
+	runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
 }
 
 Variable& Variable::operator=(const Variable& other)
@@ -167,7 +259,7 @@ bool Variable::operator==(const Variable& other) const
 
 	if (other.type != type)
 	{
-		throw SudohRuntimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+		runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 	}
 
 	switch (other.type)
@@ -179,8 +271,9 @@ bool Variable::operator==(const Variable& other) const
 	case Type::string:
 		return val.stringVal == other.val.stringVal;
 	case Type::list:
+		return val.listRef == other.val.listRef;
 	case Type::map:
-		return val.sharedRef == other.val.sharedRef;
+		return val.mapRef == other.val.mapRef;
 	}
 	return false;
 }
@@ -194,7 +287,7 @@ bool Variable::operator<(const Variable& other) const
 {
 	if (other.type != type)
 	{
-		throw SudohRuntimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+		runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 	}
 
 	switch (other.type)
@@ -205,14 +298,14 @@ bool Variable::operator<(const Variable& other) const
 		return val.stringVal < other.val.stringVal;
 	}
 
-	throw SudohRuntimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+	runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 }
 
 bool Variable::operator<=(const Variable& other) const
 {
 	if (other.type != type)
 	{
-		throw SudohRuntimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+		runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 	}
 
 	switch (other.type)
@@ -223,7 +316,7 @@ bool Variable::operator<=(const Variable& other) const
 		return val.stringVal <= other.val.stringVal;
 	}
 
-	throw SudohRuntimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+	runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 }
 
 bool Variable::operator>(const Variable& other) const
@@ -237,29 +330,29 @@ bool Variable::operator>=(const Variable& other) const
 }
 
 // will only appear on left-hand side of expression
-Variable& Variable::operator[](const Variable& index) const
+Variable& Variable::operator[](const Variable& index)
 {
 	int i;
 	switch (type)
 	{
 	case Type::string:
-		throw SudohRuntimeException("illegal attempt to modify string");
+		runtimeException("illegal attempt to modify string");
 	case Type::list:
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
-			throw SudohRuntimeException("specified list index is not an integer");
+			runtimeException("specified list index is not an integer");
 		}
 		i = index.val.numVal.intVal;
-		if (i < 0 || i >= ((ListRef*)val.sharedRef)->listVal.size())
+		if (i < 0 || i >= val.listRef->val.size())
 		{
-			throw SudohRuntimeException("specified list index out of bounds");
+			runtimeException("specified list index out of bounds");
 		}
-		return ((ListRef*)val.sharedRef)->listVal[i];
+		return val.listRef->val[i];
 	case Type::map:
-		return ((MapRef*)(val.sharedRef))->mapVal[index];
+		return val.mapRef->val[index];
 	}
 
-	throw SudohRuntimeException("cannot index into type " + typeString());
+	runtimeException("cannot index into type " + typeString());
 }
 
 // non-reference equivalent of [] operator; for accesses rather than modifications
@@ -271,42 +364,111 @@ Variable Variable::at(const Variable& index) const
 	case Type::string:
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
-			throw SudohRuntimeException("specified string index is not an integer");
+			runtimeException("specified string index is not an integer");
 		}
 		i = index.val.numVal.intVal;
 		if (i < 0 || i >= val.stringVal.length())
 		{
-			throw SudohRuntimeException("specified string index out of bounds");
+			runtimeException("specified string index out of bounds");
 		}
-		return std::to_string(val.stringVal[i]);
+		return std::string(1, val.stringVal[i]);
 	case Type::list:
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
-			throw SudohRuntimeException("specified list index is not an integer");
+			runtimeException("specified list index is not an integer");
 		}
 		i = index.val.numVal.intVal;
-		if (i < 0 || i >= ((ListRef*)val.sharedRef)->listVal.size())
+		if (i < 0 || i >= val.listRef->val.size())
 		{
-			throw SudohRuntimeException("specified list index out of bounds");
+			runtimeException("specified list index out of bounds");
 		}
-		return ((ListRef*)val.sharedRef)->listVal[i];
+		return val.listRef->val[i];
 	case Type::map:
-		return ((MapRef*)(val.sharedRef))->mapVal[index];
+		return val.mapRef->val[index];
 	}
 	
-	throw SudohRuntimeException("cannot index into type " + typeString());
+	runtimeException("cannot index into type " + typeString());
+}
+
+Variable::operator bool() const
+{
+	if (type == Type::boolean)
+	{
+		return val.boolVal;
+	}
+	runtimeException("expected boolean type");
 }
 
 // +-------------------------------------+
 // |   VariableIterator implementation   |
 // +-------------------------------------+
 
-void VariableIterator::operator++()
+Variable::VariableIterator::VariableIterator(Variable* var, bool begin) : container(var)
 {
-
+	switch (var->type)
+	{
+	case Type::string:
+		stringIt = begin ? var->val.stringVal.begin() : var->val.stringVal.end();
+		break;
+	case Type::list:
+		listIt = begin ? var->val.listRef->val.begin() : var->val.listRef->val.end();
+		break;
+	case Type::map:
+		mapIt = begin ? var->val.mapRef->val.begin() : var->val.mapRef->val.end();
+		break;
+	default:
+		runtimeException("cannot iterate over type " + var->typeString());
+	}
 }
 
-Variable& VariableIterator::operator*()
+void Variable::VariableIterator::operator++()
 {
-	return *curr;
+	switch (container->type)
+	{
+	case Type::string:
+		stringIt++;
+		break;
+	case Type::list:
+		listIt++;
+		break;
+	case Type::map:
+		mapIt++;
+		break;
+	}
+}
+
+Variable Variable::VariableIterator::operator*()
+{
+	switch (container->type)
+	{
+	case Type::string:
+		return std::string(1, *stringIt);
+	case Type::list:
+		return *listIt;
+	case Type::map:
+		return mapIt->first;
+	}
+}
+
+bool Variable::VariableIterator::operator!=(const VariableIterator& other)
+{
+	switch (container->type)
+	{
+	case Type::string:
+		return stringIt != other.stringIt;
+	case Type::list:
+		return listIt != other.listIt;
+	case Type::map:
+		return mapIt != other.mapIt;
+	}
+}
+
+Variable::VariableIterator Variable::begin()
+{
+	return VariableIterator(this, true);
+}
+
+Variable::VariableIterator Variable::end()
+{
+	return VariableIterator(this, false);
 }

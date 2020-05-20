@@ -1,30 +1,31 @@
 #include "sudoh.h"
 #include <iostream>
+#include <ctime>
 
-Variable _print(Variable& str)
+Variable _print(Variable str)
 {
 	std::cout << str.toString();
 	return null;
 }
 
-Variable _printLine(Variable& str)
+Variable _printLine(Variable str)
 {
 	_print(str);
 	std::cout << std::endl;
 	return null;
 }
 
-Variable _length(Variable& var)
+Variable _length(Variable var)
 {
 	return var.length();
 }
 
-Variable _string(Variable& var)
+Variable _string(Variable var)
 {
 	return var.toString();
 }
 
-Variable _number(Variable& var)
+Variable _number(Variable var)
 {
 	//switch (var.type)
 	//{
@@ -35,5 +36,11 @@ Variable _number(Variable& var)
 
 Variable _random()
 {
-	return rand(); // TODO add srand to beginning of transpiled output
+	static bool seedSet = false;
+	if (!seedSet)
+	{
+		srand(time(nullptr));
+		seedSet = true;
+	}
+	return rand();
 }

@@ -2,17 +2,7 @@
 #include <vector>
 #include <unordered_map>
 
-class SudohRuntimeException : public std::exception
-{
-	std::string msg;
-
-public:
-	SudohRuntimeException(std::string message) : msg(message) {}
-	const char* what() const throw()
-	{
-		return msg.c_str();
-	}
-};
+void runtimeException(const std::string msg);
 
 struct Variable;
 typedef std::vector<Variable> List;
@@ -44,50 +34,43 @@ public:
 	Number operator-(const Number& other) const;
 	Number operator*(const Number& other) const;
 	Number operator/(const Number& other) const;
+	Number operator%(const Number& other) const;
+
 	bool operator==(const Number& other) const;
 	bool operator!=(const Number& other) const;
 	bool operator<(const Number& other) const;
 	bool operator<=(const Number& other) const;
 };
 
+template <typename T>
 struct Ref
 {
+	T val;
 	int refCount;
-public:
-	Ref();
+	Ref(T v) : refCount(1), val(v) {}
 };
 
-struct ListRef : public Ref
-{
-	List listVal;
-public:
-	ListRef(List l);
-};
-
-struct MapRef : public Ref
-{
-	Map mapVal;
-public:
-	MapRef(Map m);
-};
-
-
-enum class Type { number, boolean, string, list, map, nul };
+enum class Type { number, boolean, string, list, map, nul, charRef };
 class Variable
 {
+	//friend class String;
 	Type type;
 	union Val
 	{
 		Number numVal;
 		bool boolVal;
 		std::string stringVal;
-		Ref* sharedRef;
+		//std::shared_ptr<List> lRef;
+		Ref<List>* listRef;
+		Ref<Map>* mapRef;
 
 		Val();
 		Val(Number val);
 		Val(bool val);
 		Val(std::string val);
-		Val(Ref* val);
+		Val(Ref<List>* val);
+		Val(Ref<Map>* val);
+		//Val(const Variable& other);
 		~Val();
 	} val;
 
@@ -103,6 +86,7 @@ public:
 	Variable(std::string s);
 	Variable(List l);
 	Variable(Map m);
+
 	Variable(const Variable& other);
 
 	~Variable();
@@ -111,11 +95,12 @@ public:
 	std::string toString() const;
 	int length() const;
 
-	class VariableIterator& begin();
-	class VariableIterator& end();
-
 	Variable operator+(const Variable& other) const;
 	Variable operator-(const Variable& other) const;
+	Variable operator*(const Variable& other) const;
+	Variable operator/(const Variable& other) const;
+	Variable operator%(const Variable& other) const;
+
 	Variable& operator=(const Variable& other);
 	bool operator==(const Variable& other) const;
 	bool operator!=(const Variable& other) const;
@@ -123,28 +108,38 @@ public:
 	bool operator<=(const Variable& other) const;
 	bool operator>(const Variable& other) const;
 	bool operator>=(const Variable& other) const;
-	Variable& operator[](const Variable& index) const;
+	Variable& operator[](const Variable& index);
 	Variable at(const Variable& index) const;
+
+	explicit operator bool() const;
+
+	class VariableIterator
+	{
+		Variable* container;
+		std::string::const_iterator stringIt;
+		List::iterator listIt;
+		Map::iterator mapIt;
+
+	public:
+		VariableIterator(Variable* var, bool begin);
+		void operator++();
+		Variable operator*();
+		bool operator!=(const VariableIterator& other);
+	};
+
+	VariableIterator begin();
+	VariableIterator end();
 };
 
 #define null Variable()
-
-class VariableIterator
-{
-	Variable* container;
-	Variable* curr;
-public:
-	void operator++();
-	Variable& operator*();
-};
 
 // +----------------------+
 // |   Standard Library   |
 // +----------------------+
 
-Variable _print(Variable& str);
-Variable _printLine(Variable& str);
-Variable _length(Variable& var);
-Variable _string(Variable& var);
-Variable _number(Variable& var);
+Variable _print(Variable str);
+Variable _printLine(Variable str);
+Variable _length(Variable var);
+Variable _string(Variable var);
+Variable _number(Variable var);
 Variable _random();

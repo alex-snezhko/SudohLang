@@ -1,29 +1,14 @@
-function swap(a, b)
-	temp <- a
-	a <- b
-	b <- temp
-
 function sort(arr)
 	n <- length(arr)
 	for i <- 0 to n-2 do
 		for j <- 0 to n-i-2 do
 			if arr[j] > arr[j + 1] then
-				swap(arr[j], arr[j + 1])
+				temp <- arr[j]
+				arr[j] <- arr[j + 1]
+				arr[j + 1] <- temp
 
-arr <- [3, 10, 4, 5, 2, 7, 8, 0, 1]
-arr[0] <- "hello
-
-repeat
-	cout <- "hello"
-while true != false
+arr <- []
+for i <- 0 to 1000 do
+	arr <- arr + random() mod 100
 sort(arr)
-for each e in arr do
-	print(e)
-
-
-
-
-bob <- { "name" <- "bob", "friends" <- [] }
-alex <- { "name" <- "alex", "friends" <- [ bob ] }
-
-friends <- alex["friends"]
+printLine(arr)
