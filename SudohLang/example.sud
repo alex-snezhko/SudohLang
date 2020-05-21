@@ -9,6 +9,6 @@ function sort(arr)
 
 arr <- []
 for i <- 0 to 1000 do
-	arr <- arr + random() mod 100
+	arr[i] <- random() mod 100
 sort(arr)
 printLine(arr)

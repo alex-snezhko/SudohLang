@@ -10,7 +10,7 @@ struct Hash
 {
 	size_t operator()(const Variable& v) const
 	{
-		return 0;
+		return 0; //TODO
 	}
 };
 typedef std::unordered_map<Variable, Variable, Hash> Map;
@@ -36,6 +36,12 @@ public:
 	Number operator/(const Number& other) const;
 	Number operator%(const Number& other) const;
 
+	void operator+=(const Number& other);
+	void operator-=(const Number& other);
+	void operator*=(const Number& other);
+	void operator/=(const Number& other);
+	void operator%=(const Number& other);
+
 	bool operator==(const Number& other) const;
 	bool operator!=(const Number& other) const;
 	bool operator<(const Number& other) const;
@@ -53,7 +59,12 @@ struct Ref
 enum class Type { number, boolean, string, list, map, nul, charRef };
 class Variable
 {
-	//friend class String;
+	friend Variable _length(Variable var);
+	friend Variable _integer(Variable var);
+	friend Variable _remove(Variable list, Variable index);
+	friend Variable _append(Variable list, Variable value);
+	friend Variable _insert(Variable list, Variable index, Variable value);
+
 	Type type;
 	union Val
 	{
@@ -70,7 +81,6 @@ class Variable
 		Val(std::string val);
 		Val(Ref<List>* val);
 		Val(Ref<Map>* val);
-		//Val(const Variable& other);
 		~Val();
 	} val;
 
@@ -93,7 +103,6 @@ public:
 
 	std::string typeString() const;
 	std::string toString() const;
-	int length() const;
 
 	Variable operator+(const Variable& other) const;
 	Variable operator-(const Variable& other) const;
@@ -101,13 +110,21 @@ public:
 	Variable operator/(const Variable& other) const;
 	Variable operator%(const Variable& other) const;
 
+	void operator+=(const Variable& other);
+	void operator-=(const Variable& other);
+	void operator*=(const Variable& other);
+	void operator/=(const Variable& other);
+	void operator%=(const Variable& other);
+
 	Variable& operator=(const Variable& other);
+
 	bool operator==(const Variable& other) const;
 	bool operator!=(const Variable& other) const;
 	bool operator<(const Variable& other) const;
 	bool operator<=(const Variable& other) const;
 	bool operator>(const Variable& other) const;
 	bool operator>=(const Variable& other) const;
+
 	Variable& operator[](const Variable& index);
 	Variable at(const Variable& index) const;
 
@@ -141,5 +158,8 @@ Variable _print(Variable str);
 Variable _printLine(Variable str);
 Variable _length(Variable var);
 Variable _string(Variable var);
-Variable _number(Variable var);
+Variable _integer(Variable var);
 Variable _random();
+Variable _remove(Variable list, Variable index);
+Variable _append(Variable list, Variable value);
+Variable _insert(Variable list, Variable index, Variable value);

@@ -7,6 +7,11 @@ struct Token
 	int lineNum;
 	size_t fileCharNum;
 	const std::string tokenString;
+
+	bool operator==(const Token& other) const
+	{
+		return tokenString == other.tokenString;
+	}
 };
 
 class SyntaxException : public std::exception

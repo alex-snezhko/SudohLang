@@ -1,4 +1,5 @@
 #include "sudoh.h"
+#include <cmath>
 
 // +---------------------------+
 // |   Number implementation   |
@@ -52,6 +53,76 @@ Number Number::operator%(const Number& other) const
 		Number(fmod(getFloatVal(), other.getFloatVal()));
 }
 
+void Number::operator+=(const Number& other)
+{
+	if (isInt && other.isInt)
+	{
+		intVal += other.intVal;
+	}
+	else
+	{
+		floatVal = getFloatVal() + other.getFloatVal();
+	}
+}
+
+void Number::operator-=(const Number& other)
+{
+	if (isInt && other.isInt)
+	{
+		intVal -= other.intVal;
+	}
+	else
+	{
+		floatVal = getFloatVal() - other.getFloatVal();
+	}
+}
+
+void Number::operator*=(const Number& other)
+{
+	if (isInt && other.isInt)
+	{
+		intVal *= other.intVal;
+	}
+	else
+	{
+		floatVal = getFloatVal() * other.getFloatVal();
+	}
+}
+
+void Number::operator/=(const Number& other)
+{
+	if (other.getFloatVal() == 0)
+	{
+		runtimeException("division by zero");
+	}
+
+	if (isInt && other.isInt && (intVal % other.intVal) == 0)
+	{
+		intVal /= other.intVal;
+	}
+	else
+	{
+		floatVal = getFloatVal() / other.getFloatVal();
+	}
+}
+
+void Number::operator%=(const Number& other)
+{
+	if (other.getFloatVal() == 0)
+	{
+		runtimeException("division by zero");
+	}
+
+	if (isInt && other.isInt)
+	{
+		intVal %= other.intVal;
+	}
+	else
+	{
+		floatVal = fmod(getFloatVal(), other.getFloatVal());
+	}
+}
+
 bool Number::operator==(const Number& other) const
 {
 	return isInt && other.isInt ?
@@ -77,28 +148,3 @@ bool Number::operator<=(const Number& other) const
 		intVal <= other.intVal :
 		getFloatVal() <= other.getFloatVal();
 }
-
-class String
-{
-	std::string str;
-	List chars;
-
-	String(std::string s) : str(s), chars(s.length())
-	{
-		for (int i = 0; i < s.length(); i++)
-		{
-			chars[i] = s[i];
-		}
-	}
-
-	int size() const
-	{
-		return str.size();
-	}
-
-	Variable& operator[](const Variable& index)
-	{
-		//int i = index.val.numVal.intVal;
-		//Variable& t = chars[i];
-	}
-};

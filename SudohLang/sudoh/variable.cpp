@@ -93,7 +93,7 @@ void Variable::freeMem()
 			delete val.listRef;
 		}
 	}
-	if (type == Type::map)
+	else if (type == Type::map)
 	{
 		if (--val.mapRef->refCount == 0)
 		{
@@ -157,20 +157,6 @@ std::string Variable::toString() const
 	}
 }
 
-int Variable::length() const
-{
-	switch (type)
-	{
-	case Type::list:
-		return val.listRef->val.size();
-	case Type::map:
-		return val.mapRef->val.size();
-	case Type::string:
-		return val.stringVal.length();
-	}
-	runtimeException("cannot take length of type " + typeString());
-}
-
 Variable Variable::operator+(const Variable& other) const
 {
 	switch (type)
@@ -185,15 +171,8 @@ Variable Variable::operator+(const Variable& other) const
 			return val.numVal + other.val.numVal;
 		}
 		break;
-
 	case Type::string:
 		return val.stringVal + other.toString();
-	case Type::list:
-	{
-		List newList = val.listRef->val;
-		newList.push_back(other);
-		return newList;
-	}
 	}
 
 	runtimeException("illegal operation '+' between types " + typeString() + " and " + other.typeString());
@@ -237,6 +216,66 @@ Variable Variable::operator%(const Variable& other) const
 	}
 
 	runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
+}
+
+void Variable::operator+=(const Variable& other)
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		val.numVal += other.val.numVal;
+	}
+	else
+	{
+		runtimeException("illegal compound addition assignment operation between types " + typeString() + " and " + other.typeString());
+	}
+}
+
+void Variable::operator-=(const Variable& other)
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		val.numVal -= other.val.numVal;
+	}
+	else
+	{
+		runtimeException("illegal compound subtraction assignment between types " + typeString() + " and " + other.typeString());
+	}
+}
+
+void Variable::operator*=(const Variable& other)
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		val.numVal *= other.val.numVal;
+	}
+	else
+	{
+		runtimeException("illegal compound multiplication assignment between types " + typeString() + " and " + other.typeString());
+	}
+}
+
+void Variable::operator/=(const Variable& other)
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		val.numVal /= other.val.numVal;
+	}
+	else
+	{
+		runtimeException("illegal compound division assignment between types " + typeString() + " and " + other.typeString());
+	}
+}
+
+void Variable::operator%=(const Variable& other)
+{
+	if (type == Type::number && other.type == Type::number)
+	{
+		val.numVal %= other.val.numVal;
+	}
+	else
+	{
+		runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
+	}
 }
 
 Variable& Variable::operator=(const Variable& other)
@@ -332,22 +371,32 @@ bool Variable::operator>=(const Variable& other) const
 // will only appear on left-hand side of expression
 Variable& Variable::operator[](const Variable& index)
 {
-	int i;
 	switch (type)
 	{
 	case Type::string:
 		runtimeException("illegal attempt to modify string");
 	case Type::list:
+	{
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
 			runtimeException("specified list index is not an integer");
 		}
-		i = index.val.numVal.intVal;
-		if (i < 0 || i >= val.listRef->val.size())
+		int idx = index.val.numVal.intVal;
+		if (idx < 0)
 		{
-			runtimeException("specified list index out of bounds");
+			runtimeException("cannot modify list at index below 0");
 		}
-		return val.listRef->val[i];
+
+		List& list = val.listRef->val;
+
+		// expand list if index above length
+		for (int i = list.size(); i <= idx; i++)
+		{
+			list.push_back(null);
+		}
+
+		return list[idx];
+	}
 	case Type::map:
 		return val.mapRef->val[index];
 	}

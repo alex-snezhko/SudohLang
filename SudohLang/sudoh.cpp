@@ -1,54 +1,32 @@
 #include "sudoh.h"
 
-Variable _List();
-Variable _addNode(Variable, Variable);
-Variable _printList(Variable);
+Variable _sort(Variable);
 
-Variable _List()
+Variable _sort(Variable _arr)
 {
-	Variable _list = Map{ { std::string("head"), null }, { std::string("size"), 0 } };
-	return _list;
-	return null;
-}
-
-Variable _addNode(Variable _list, Variable _val)
-{
-	Variable _node = Map{ { std::string("val"), _val }, { std::string("next"), null } };
-	if (_list.at(std::string("size")) == 0)
+	Variable _n = _length(_arr);
+	for (Variable _i = 0; _i <= _n - 2; _i += 1)
 	{
-		_list[std::string("head")] = _node;
-	}
-	else
-	{
-		Variable _curr = _list.at(std::string("head"));
-		while (_curr.at(std::string("next")) != null)
+		for (Variable _j = 0; _j <= _n - _i - 2; _j += 1)
 		{
-			_curr = _curr.at(std::string("next"));
+			if (_arr.at(_j) > _arr.at(_j + 1))
+			{
+				Variable _temp = _arr.at(_j);
+				_arr[_j] = _arr.at(_j + 1);
+				_arr[_j + 1] = _temp;
+			}
 		}
-		_curr[std::string("next")] = _node;
 	}
-	_list[std::string("size")] = _list.at(std::string("size")) + 1;
-	return null;
-}
-
-Variable _printList(Variable _list)
-{
-	Variable _curr = _list.at(std::string("head"));
-	_print(std::string("["));
-	while (!(_curr == null))
-	{
-		_print(_curr.at(std::string("val")) + std::string(","));
-		_curr = _curr.at(std::string("next"));
-	}
-	_printLine(std::string("]"));
 	return null;
 }
 
 int main()
 {
-	Variable _list = _List();
-	_addNode(_list, 1);
-	_addNode(_list, 2);
-	_addNode(_list, 3);
-	_printList(_list);
+	Variable _arr = List{  };
+	for (Variable _i = 0; _i <= 1000; _i += 1)
+	{
+		_arr[_i] = _random() % 100;
+	}
+	_sort(_arr);
+	_printLine(_arr);
 }
