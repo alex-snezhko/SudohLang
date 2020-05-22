@@ -6,14 +6,11 @@ void runtimeException(const std::string msg);
 
 struct Variable;
 typedef std::vector<Variable> List;
-struct Hash
+struct VariableHash
 {
-	size_t operator()(const Variable& v) const
-	{
-		return 0; //TODO
-	}
+	size_t operator()(const Variable& v) const;
 };
-typedef std::unordered_map<Variable, Variable, Hash> Map;
+typedef std::unordered_map<Variable, Variable, VariableHash> Map;
 
 struct Number
 {
@@ -64,6 +61,7 @@ class Variable
 	friend Variable _remove(Variable list, Variable index);
 	friend Variable _append(Variable list, Variable value);
 	friend Variable _insert(Variable list, Variable index, Variable value);
+	friend class VariableHash;
 
 	Type type;
 	union Val

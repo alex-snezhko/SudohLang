@@ -3,6 +3,20 @@
 #include <iostream>
 #include <memory>
 
+size_t VariableHash::operator()(const Variable& v) const
+{
+	switch (v.type)
+	{
+	case Type::number:
+		return std::hash<double>()(v.val.numVal.floatVal);
+	case Type::boolean:
+		return std::hash<bool>()(v.val.boolVal);
+	case Type::map:
+		// TODO
+		break;
+	}
+}
+
 void runtimeException(const std::string msg)
 {
 	std::string output = "Runtime exception: " + msg + "; terminating program";

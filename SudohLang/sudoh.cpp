@@ -1,32 +1,14 @@
 #include "sudoh.h"
 
-Variable _sort(Variable);
+var _asdf(var, var);
 
-Variable _sort(Variable _arr)
+var _asdf(var _num, var _num2)
 {
-	Variable _n = _length(_arr);
-	for (Variable _i = 0; _i <= _n - 2; _i += 1)
-	{
-		for (Variable _j = 0; _j <= _n - _i - 2; _j += 1)
-		{
-			if (_arr.at(_j) > _arr.at(_j + 1))
-			{
-				Variable _temp = _arr.at(_j);
-				_arr[_j] = _arr.at(_j + 1);
-				_arr[_j + 1] = _temp;
-			}
-		}
-	}
+	_asdf(var(1), var(2));
 	return null;
 }
 
 int main()
 {
-	Variable _arr = List{  };
-	for (Variable _i = 0; _i <= 1000; _i += 1)
-	{
-		_arr[_i] = _random() % 100;
-	}
-	_sort(_arr);
-	_printLine(_arr);
+	var _a = var(true) && var(true);
 }

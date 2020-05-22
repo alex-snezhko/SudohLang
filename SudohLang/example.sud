@@ -1,14 +1,4 @@
-function sort(arr)
-	n <- length(arr)
-	for i <- 0 to n-2 do
-		for j <- 0 to n-i-2 do
-			if arr[j] > arr[j + 1] then
-				temp <- arr[j]
-				arr[j] <- arr[j + 1]
-				arr[j + 1] <- temp
+function asdf(num, num2)
+	asdf(1, 2)
 
-arr <- []
-for i <- 0 to 1000 do
-	arr[i] <- random() mod 100
-sort(arr)
-printLine(arr)
+a <- true and true

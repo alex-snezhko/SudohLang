@@ -38,7 +38,7 @@ const std::set<std::string> keywords = {
 // list of tokens to be accessed by parsing functions
 std::vector<Token> tokens;
 // current index into tokens list
-int tokenNum;
+size_t tokenNum;
 
 // list of variables that have been declared in each scope; variables in scope 0 are in index 0, etc
 std::vector<std::set<std::string>> varsInScopeN;
@@ -67,6 +67,9 @@ std::set<SudohFunction> functionsDefined = {
 std::vector<SudohFunction> newFunctions;
 // a set of all functions that the programmer has attempted to call
 std::set<SudohFunction> functionsUsed;
+
+// TODO use to check for name conflicts
+std::set<Token> allVariables;
 // flag for determining whether the parser is currently inside of a function
 bool inFunction;
 
@@ -195,10 +198,10 @@ bool parse(const std::string& contents, std::string& transpiled)
 		{
 			for (const SudohFunction& e : newFunctions)
 			{
-				transpiled += "Variable _" + e.name + "(";
+				transpiled += "var _" + e.name + "(";
 				for (int i = 0; i < e.numParams; i++)
 				{
-					transpiled += std::string("Variable") + (i < e.numParams - 1 ? ", " : "");
+					transpiled += std::string("var") + (i < e.numParams - 1 ? ", " : "");
 				}
 				transpiled += ");\n";
 			}
@@ -419,7 +422,7 @@ bool parseVarName(VarParseMode mode)
 				break;
 			}
 			varsInScopeN[currStatementScope].insert(name);
-			appendAndAdvance("Variable _" + name);
+			appendAndAdvance("var _" + name);
 			break;
 		case VarParseMode::mustExist:
 			if (varExists(name))
@@ -437,7 +440,7 @@ bool parseVarName(VarParseMode mode)
 			}
 			injectionScope = currStatementScope + 1;
 			varsToInject.push_back(name);
-			appendAndAdvance("Variable _" + name);
+			appendAndAdvance("var _" + name);
 			break;
 		case VarParseMode::forEachVar:
 			if (varExists(name))
@@ -446,7 +449,7 @@ bool parseVarName(VarParseMode mode)
 			}
 			injectionScope = currStatementScope + 1;
 			varsToInject.push_back(name);
-			appendAndAdvance("Variable _" + name);
+			appendAndAdvance("var _" + name);
 			break;
 		case VarParseMode::functionParam:
 			if (std::find(varsToInject.begin(), varsToInject.end(), name) != varsToInject.end())
@@ -455,9 +458,11 @@ bool parseVarName(VarParseMode mode)
 			}
 			injectionScope = currStatementScope + 1;
 			varsToInject.push_back(name);
-			appendAndAdvance("Variable _" + name);
+			appendAndAdvance("var _" + name);
 			break;
 		}
+
+		// TODO allVariables.insert(name);
 		return true;
 	}
 	return false;
@@ -483,7 +488,7 @@ bool parseMapEntry()
 				uncommittedTrans += " }";
 				return true;
 			}
-			throw SyntaxException("expected expression as map value");
+			throw SyntaxException("expected expression as map value"); // TODO make sure duplicate values throw a runtime error in sudoh
 		}
 		throw SyntaxException("map entry must be of form <key> <- <value>");
 	}
@@ -531,16 +536,16 @@ void parseAfterIf(int scope, std::set<bool (*)()>& extraRules)
 	{
 		if (nextToken() == "else")
 		{
+			if (elseReached)
+			{
+				throw SyntaxException("'else' block already reached");
+			}
+
 			appendAndAdvance("else");
 			// else if [b] then
 			//      ^
 			if (nextToken() == "if")
 			{
-				if (elseReached)
-				{
-					throw SyntaxException("'else' block cannot be followed by 'else if' block");
-				}
-
 				appendAndAdvance(" if (");
 
 				// else if [b] then
@@ -558,10 +563,6 @@ void parseAfterIf(int scope, std::set<bool (*)()>& extraRules)
 					continue;
 				}
 				throw SyntaxException("expected 'then'");
-			}
-			if (elseReached)
-			{
-				throw SyntaxException("multiple 'else' blocks not allowed");
 			}
 			
 			endOfLine();
@@ -745,7 +746,7 @@ bool parseStructure(bool (*&additionalRule)(), void (*&parseAfter)(int, std::set
 			throw SyntaxException("nested function illegal");
 		}
 
-		appendAndAdvance("Variable ");
+		appendAndAdvance("var ");
 		const std::string& funcName = nextToken();
 
 		// function [name]({params})
@@ -797,7 +798,7 @@ bool parseAssignment()
 	//  ^
 	if (std::regex_match(name, NAME_RE) && keywords.count(name) == 0)
 	{
-		int beginTokenNum = tokenNum;
+		size_t beginTokenNum = tokenNum;
 		parseVar(true);
 
 		// [var] <- [expr]
@@ -806,9 +807,10 @@ bool parseAssignment()
 		{
 			// check if assignment is of form [var] <- [var] [operator] [expr] to transpile to C++
 			// compound assignment statement e.g. [var] += [expr]
-			if (std::equal(tokens.begin() + beginTokenNum, tokens.begin() + tokenNum, tokens.begin() + tokenNum + 1))
+			if (tokenNum + (tokenNum - beginTokenNum) + 1 <= tokens.size() &&
+				std::equal(tokens.begin() + beginTokenNum, tokens.begin() + tokenNum, tokens.begin() + tokenNum + 1))
 			{
-				int temp = tokenNum;
+				size_t temp = tokenNum;
 				tokenNum += tokenNum - beginTokenNum + 1;
 				const std::string& op = nextToken();
 				// only translate to compound assignment statements for arithmetic operations
@@ -888,7 +890,7 @@ bool parseVar(bool lvalue)
 		{
 			if (!exists)
 			{
-				throw SyntaxException("cannot get map value of undeclared variable");
+				throw SyntaxException("cannot index into undeclared variable");
 			}
 			// translate to var[x] for attempted assignment and var.at(x) for attempted access
 			appendAndAdvance(lvalue ? "[" : ".at(");
@@ -935,7 +937,7 @@ bool parseExpr()
 // parse expression and throw exception if expression does not match one of allowed types
 void parseExpr(const std::vector<ParsedType> allowed)
 {
-	int initTokenNum = tokenNum;
+	size_t initTokenNum = tokenNum;
 
 	ParsedType type;
 	if (!parseExpr(type) || (type != ParsedType::any &&
@@ -953,6 +955,15 @@ void parseExpr(const std::vector<ParsedType> allowed)
 	}
 }
 
+void maybeMultiline()
+{
+	if (nextToken() == "\n" && nextTokenScope() <= currStatementScope)
+	{
+		throw SyntaxException("indentation of first line of multiline statement "
+			"must be less than indentation of following lines");
+	}
+}
+
 // parse a single term in an expression
 bool parseTerm(ParsedType& t)
 {
@@ -967,6 +978,7 @@ bool parseTerm(ParsedType& t)
 	{
 		appendAndAdvance("!");
 		parseExpr({ ParsedType::boolean });
+		uncommittedTrans += ")";
 		return true;
 	}
 
@@ -993,7 +1005,7 @@ bool parseTerm(ParsedType& t)
 	// check for boolean
 	if (token == "true" || token == "false")
 	{
-		appendAndAdvance(token);
+		appendAndAdvance("var(" + token + ")");
 		t = ParsedType::boolean;
 		return true;
 	}
@@ -1001,7 +1013,7 @@ bool parseTerm(ParsedType& t)
 	// check for number
 	if (std::regex_match(token, NUMBER_RE))
 	{
-		appendAndAdvance(token);
+		appendAndAdvance("var(" + token + ")");
 		t = ParsedType::number;
 		return true;
 	}
@@ -1009,7 +1021,7 @@ bool parseTerm(ParsedType& t)
 	// check for string
 	if (std::regex_match(token, STRING_RE))
 	{
-		appendAndAdvance("std::string(" + token + ")");
+		appendAndAdvance("var(std::string(" + token + "))");
 		t = ParsedType::string;
 		return true;
 	}
@@ -1025,15 +1037,13 @@ bool parseTerm(ParsedType& t)
 	// check for list
 	if (token == "[")
 	{
-		appendAndAdvance("List{ ");
+		appendAndAdvance("var(List{ ");
+		maybeMultiline();
 		parseCommaSep([] { return parseExpr(); });
+		maybeMultiline();
 		if (nextToken() == "]")
 		{
-			if (nextTokenScope() < currStatementScope)
-			{
-				throw SyntaxException("list closing brace indentation may not be less than indentation of opening brace");
-			}
-			appendAndAdvance(" }");
+			appendAndAdvance(" })");
 			t = ParsedType::list;
 			return true;
 		}
@@ -1043,17 +1053,13 @@ bool parseTerm(ParsedType& t)
 	// check for map
 	if (token == "{")
 	{
-		appendAndAdvance("Map{ ");
+		appendAndAdvance("var(Map{ ");
+		maybeMultiline();
 		parseCommaSep(parseMapEntry);
-
-		// TODO allow multiline map declarations
+		maybeMultiline();
 		if (nextToken() == "}")
 		{
-			if (nextTokenScope() < currStatementScope)
-			{
-				throw SyntaxException("map closing brace indentation may not be less than indentation of opening brace");
-			}
-			appendAndAdvance(" }");
+			appendAndAdvance(" })");
 			t = ParsedType::map;
 			return true;
 		}
@@ -1076,14 +1082,12 @@ typedef std::map<ParsedType, std::set<ParsedType>> Operations;
 // if operation between two specified types is allowed
 void checkBinary(const std::string translatedBinOp, ParsedType& leftType, const Operations& allowedOps)
 {
+	size_t initTokenNum = tokenNum;
+
 	const std::string& sudohBinOp = nextToken();
 	appendAndAdvance(" " + translatedBinOp + " ");
 
-	if (nextToken() == "\n" && nextTokenScope() <= currStatementScope)
-	{
-		throw SyntaxException("subsequent lines of multiline arithmetic expression or compound "
-			"condition must be indented above level of first line");
-	}
+	maybeMultiline();
 
 	// find type of right term in binary expression and determine whether binary statement of given
 	// operation between these two types is legal
@@ -1105,7 +1109,8 @@ void checkBinary(const std::string translatedBinOp, ParsedType& leftType, const 
 			}
 		}
 
-		throw SyntaxException("'" + sudohBinOp + "' cannot be applied to types " +
+		tokenNum = initTokenNum;
+		throw SyntaxException("binary operator '" + sudohBinOp + "' cannot be applied to types " +
 			typeToString(leftType) + " and " + typeToString(rightType));
 	}
 }
@@ -1164,11 +1169,7 @@ int parseCommaSep(bool (*checkFunc)())
 		while (nextToken() == ",")
 		{
 			appendAndAdvance(", ");
-			if (nextToken() == "\n" && nextTokenScope() <= currStatementScope)
-			{
-				throw SyntaxException("subsequent lines in multiline comma-separated list must be "
-					"indented at same level or higher than original line");
-			}
+			maybeMultiline();
 			if (checkFunc())
 			{
 				numItems++;

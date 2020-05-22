@@ -32,6 +32,7 @@ std::vector<Token> tokenize(const std::string& line)
 		// if token at index was not delimiter then skip
 		if (!delim)
 		{
+			beginLine = false;
 			continue;
 		}
 
@@ -63,24 +64,30 @@ std::vector<Token> tokenize(const std::string& line)
 					throw SyntaxException("malformed string"); // TODO
 				}
 
-				tokens.push_back({ lineNum, idxBeginToken, line.substr(curr, close - curr + 1) });
+				tokens.push_back({ lineNum, curr, line.substr(curr, close - curr + 1) });
 				curr = close;
 			}
 			else if (*delim == "//")
 			{
 				curr = line.find('\n', curr);
 			}
+			else if (*delim == "\t")
+			{
+				// do not add tabs after the beginning of a line to the list
+				if (beginLine)
+				{
+					tokens.push_back({ lineNum, curr, "\t" });
+				}
+			}
+			else if (*delim == "\n")
+			{
+				tokens.push_back({ lineNum++, curr, "\n" });
+				beginLine = true;
+			}
 			else
 			{
-				beginLine = *delim == "\n" ? lineNum++, true : (*delim == "\t" && beginLine);
-
-				// do not add tabs after the beginning of a line to the list
-				bool tabAfterBegin = *delim == "\t" && !beginLine;
-				if (!tabAfterBegin)
-				{
-					tokens.push_back({ lineNum, idxBeginToken, *delim });
-				}
-
+				beginLine = false;
+				tokens.push_back({ lineNum, curr, *delim });
 				curr += delim->length() - 1;
 			}
 		}
@@ -88,7 +95,7 @@ std::vector<Token> tokenize(const std::string& line)
 		idxBeginToken = curr + 1;
 	}
 
-	tokens.push_back({ lineNum, line.length(), END });
+	tokens.push_back({ lineNum, line.length() - 1, END }); // TODO crash if illegal symbol found
 
 	return tokens;
 }
