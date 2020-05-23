@@ -1,7 +1,7 @@
+#include "sudohc.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "sudohc.h"
 
 int main(int argc, char** argv)
 {

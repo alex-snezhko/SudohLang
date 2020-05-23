@@ -12,8 +12,13 @@ size_t VariableHash::operator()(const Variable& v) const
 	case Type::boolean:
 		return std::hash<bool>()(v.val.boolVal);
 	case Type::map:
-		// TODO
-		break;
+		return std::hash<Ref<Map>*>()(v.val.mapRef);
+	case Type::list:
+		return std::hash<Ref<List>*>()(v.val.listRef);
+	case Type::string:
+		return std::hash<std::string>()(v.val.stringVal);
+	default:
+		runtimeException("cannot add key 'null' to map");
 	}
 }
 

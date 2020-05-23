@@ -148,6 +148,8 @@ public:
 
 #define null Variable()
 
+using var = Variable;
+
 // +----------------------+
 // |   Standard Library   |
 // +----------------------+

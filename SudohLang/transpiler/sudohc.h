@@ -17,14 +17,19 @@ struct Token
 class SyntaxException : public std::exception
 {
 	std::string msg;
+	size_t tokenNum;
 public:
-	SyntaxException(std::string str) : msg(str) {}
-	const char* what() const throw()
+	SyntaxException(std::string str, size_t token) : msg(str), tokenNum(token) {}
+	const char* what() const
 	{
 		return msg.c_str();
 	}
+	size_t getTokenNum() const
+	{
+		return tokenNum;
+	}
 };
 
-std::vector<Token> tokenize(const std::string& line);
+void tokenize(const std::string& line, std::vector<Token>& tokens);
 const std::string END = "";
 bool parse(const std::string& contents, std::string& transpiled);

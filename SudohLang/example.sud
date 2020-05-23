@@ -1,4 +1,11 @@
-function asdf(num, num2)
-	asdf(1, 2)
+function asd(asdf)
+	a <- "hello"
+	asdf <- 1
+	asdf()
+	asd(1)
 
-a <- true and true
+function asdf()
+	a <- "hj"
+
+asd(1)
+asdf()

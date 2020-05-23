@@ -126,9 +126,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="sudoh\linked.cpp" />
+    <ClCompile Include="transpiler\old.cpp" />
     <ClCompile Include="sudoh\sudstdlib.cpp" />
     <ClCompile Include="sudoh\variable.cpp" />
     <ClCompile Include="transpiler\parser.cpp" />
+    <ClCompile Include="transpiler\parser.h" />
     <ClCompile Include="transpiler\sudohc.cpp" />
     <ClCompile Include="transpiler\tokenize.cpp" />
     <ClCompile Include="sudoh\types.cpp" />
