@@ -1,0 +1,6 @@
+// hello
+function asdf(asd)
+	a <- 1
+
+function asdf(a)
+	b <- 1

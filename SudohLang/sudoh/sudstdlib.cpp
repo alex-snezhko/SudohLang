@@ -2,20 +2,19 @@
 #include <iostream>
 #include <ctime>
 
-Variable _print(Variable str)
+Variable f_print(Variable str)
 {
 	std::cout << str.toString();
 	return null;
 }
 
-Variable _printLine(Variable str)
+Variable f_printLine(Variable str)
 {
-	_print(str);
-	std::cout << std::endl;
+	std::cout << str.toString() << std::endl;
 	return null;
 }
 
-Variable _length(Variable var)
+Variable f_length(Variable var)
 {
 	switch (var.type)
 	{
@@ -29,12 +28,12 @@ Variable _length(Variable var)
 	runtimeException("cannot take length of type " + var.typeString());
 }
 
-Variable _string(Variable var)
+Variable f_string(Variable var)
 {
 	return var.toString();
 }
 
-Variable _integer(Variable var)
+Variable f_integer(Variable var)
 {
 	switch (var.type)
 	{
@@ -44,7 +43,7 @@ Variable _integer(Variable var)
 	return null;
 }
 
-Variable _random()
+Variable f_random()
 {
 	static bool seedSet = false;
 	if (!seedSet)
@@ -55,7 +54,7 @@ Variable _random()
 	return rand();
 }
 
-Variable _remove(Variable list, Variable index)
+Variable f_remove(Variable list, Variable index)
 {
 	if (list.type != Type::list)
 	{
@@ -73,7 +72,7 @@ Variable _remove(Variable list, Variable index)
 	return null;
 }
 
-Variable _append(Variable list, Variable value)
+Variable f_append(Variable list, Variable value)
 {
 	if (list.type != Type::list)
 	{
@@ -84,7 +83,7 @@ Variable _append(Variable list, Variable value)
 	return null;
 }
 
-Variable _insert(Variable list, Variable index, Variable value)
+Variable f_insert(Variable list, Variable index, Variable value)
 {
 	if (list.type != Type::list)
 	{

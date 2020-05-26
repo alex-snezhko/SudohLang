@@ -18,9 +18,6 @@
     <ClCompile Include="transpiler\sudohc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="transpiler\tokenize.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="sudoh\variable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -33,13 +30,19 @@
     <ClCompile Include="sudoh\sudstdlib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="transpiler\old.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="transpiler\parser.h">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="transpiler\parser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="transpiler\name_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="transpiler\transpiled_buf.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="transpiler\token_iter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -48,10 +51,19 @@
     <None Include="linked.sud" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="transpiler\sudohc.h">
+    <ClInclude Include="sudoh\sudoh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="sudoh\sudoh.h">
+    <ClInclude Include="transpiler\transpiled_buf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transpiler\name_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transpiler\token_iter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transpiler\syntax_ex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

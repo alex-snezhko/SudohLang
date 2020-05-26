@@ -56,11 +56,11 @@ struct Ref
 enum class Type { number, boolean, string, list, map, nul, charRef };
 class Variable
 {
-	friend Variable _length(Variable var);
-	friend Variable _integer(Variable var);
-	friend Variable _remove(Variable list, Variable index);
-	friend Variable _append(Variable list, Variable value);
-	friend Variable _insert(Variable list, Variable index, Variable value);
+	friend Variable f_length(Variable var);
+	friend Variable f_integer(Variable var);
+	friend Variable f_remove(Variable list, Variable index);
+	friend Variable f_append(Variable list, Variable value);
+	friend Variable f_insert(Variable list, Variable index, Variable value);
 	friend class VariableHash;
 
 	Type type;
@@ -154,12 +154,12 @@ using var = Variable;
 // |   Standard Library   |
 // +----------------------+
 
-Variable _print(Variable str);
-Variable _printLine(Variable str);
-Variable _length(Variable var);
-Variable _string(Variable var);
-Variable _integer(Variable var);
-Variable _random();
-Variable _remove(Variable list, Variable index);
-Variable _append(Variable list, Variable value);
-Variable _insert(Variable list, Variable index, Variable value);
+Variable f_print(Variable str);
+Variable f_printLine(Variable str);
+Variable f_length(Variable var);
+Variable f_string(Variable var);
+Variable f_integer(Variable var);
+Variable f_random();
+Variable f_remove(Variable list, Variable index);
+Variable f_append(Variable list, Variable value);
+Variable f_insert(Variable list, Variable index, Variable value);

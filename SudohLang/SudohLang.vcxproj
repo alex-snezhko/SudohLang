@@ -126,22 +126,26 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="sudoh\linked.cpp" />
-    <ClCompile Include="transpiler\old.cpp" />
+    <ClCompile Include="transpiler\name_manager.cpp" />
     <ClCompile Include="sudoh\sudstdlib.cpp" />
     <ClCompile Include="sudoh\variable.cpp" />
     <ClCompile Include="transpiler\parser.cpp" />
     <ClCompile Include="transpiler\parser.h" />
     <ClCompile Include="transpiler\sudohc.cpp" />
-    <ClCompile Include="transpiler\tokenize.cpp" />
     <ClCompile Include="sudoh\types.cpp" />
+    <ClCompile Include="transpiler\token_iter.cpp" />
+    <ClCompile Include="transpiler\transpiled_buf.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.sud" />
     <None Include="linked.sud" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="transpiler\sudohc.h" />
+    <ClInclude Include="transpiler\name_manager.h" />
     <ClInclude Include="sudoh\sudoh.h" />
+    <ClInclude Include="transpiler\syntax_ex.h" />
+    <ClInclude Include="transpiler\token_iter.h" />
+    <ClInclude Include="transpiler\transpiled_buf.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
