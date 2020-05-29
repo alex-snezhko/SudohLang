@@ -5,6 +5,7 @@
 #include <sstream>
 #include <algorithm>
 
+// TODO complete all sudoh functions; removeLast, remove (accept list and map), add input() etc
 // returns string representation of a ParsedType enum
 std::string typeToString(const ParsedType t)
 {
@@ -101,22 +102,22 @@ void Parser::parse(const std::string fileName, bool main)
 		if (tokens.currToken() == "including")
 		{
 			tokens.advance();
-			parseCommaSep(&Parser::parseIncludeFile, "\n");
+			parseCommaSep(&Parser::parseIncludeFile, "\n", false);
 		}
 
 		// initialize currStatementScope to -1 for parse because global Sudoh code will be treated as a block
 		// for parseBlock(), which searches for code in (current scope + 1). This allows search in scope 0
 		currStatementScope = -1;
 		trans.appendToBuffer("int main()");
-		trans.commitLine(inFunction, currStatementScope);
+		trans.commitLine(inProcedure, currStatementScope);
 
 		// parse global block; extraRules will contain a set of extra parse rules allowed when necessary
 		// (such as allowing 'break', 'continue' when inside a loop); no extra rules initially
 		std::vector<bool (Parser::*)()> extraRules = {};
 		parseBlock(extraRules);
 
-		// ensure validity of all function calls attempted
-		names.checkFuncCallsValid();
+		// ensure validity of all procedure calls attempted
+		names.checkProcCallsValid();
 	}
 	catch (SyntaxException& e) // will catch a syntax error and print the error
 	{
@@ -145,9 +146,9 @@ void Parser::parse(const std::string fileName, bool main)
 		exit(1);
 	}
 
-	// gather all functions defined in this .sud file and place them into a header file
+	// gather all procedures defined in this .sud file and place them into a header file
 	std::string transpiledHeader = "#include \"sudoh.h\"\n\n";
-	for (auto& e : names.getFunctionsDefined())
+	for (auto& e : names.getProceduresDefined())
 	{
 		transpiledHeader += "var f_" + e.name + "(";
 		for (int i = 0; i < e.numParams; i++)
@@ -158,11 +159,11 @@ void Parser::parse(const std::string fileName, bool main)
 	}
 
 	std::ofstream out;
-	out.open(fileName + ".h");
+	out.open("sudoh/_" + fileName + ".h");
 	out << transpiledHeader;
 	out.close();
 
-	out.open(fileName + ".cpp");
+	out.open("sudoh/_" + fileName + ".cpp");
 	out << trans.fullTranspiled(main);
 	out.close();
 }
@@ -180,9 +181,9 @@ void Parser::endOfLine()
 	const std::string& token = tokens.currToken();
 	if (token != "\n" && token != TokenIterator::END)
 	{
-		throw SyntaxException("expected end of line");
+		throw SyntaxException("each statement must be on a new line; expected end of line");
 	}
-	trans.commitLine(inFunction, currStatementScope);
+	trans.commitLine(inProcedure, currStatementScope);
 }
 
 // parses one single line in the Sudoh code and commits a transpiled version it if is well-formed
@@ -194,15 +195,15 @@ bool Parser::parseNextLine(std::vector<bool(Parser::*)()>& extraRules)
 		return false;
 	}
 
-	// first check if this line is a standalone function call or assignment statement
-	if (parseFuncCall() || parseAssignment())
+	// first check if this line is a standalone procedure call or assignment statement
+	if (parseProcCall() || parseAssignment())
 	{
 		trans.appendToBuffer(";");
 		endOfLine();
 		return true;
 	}
 
-	// check if this line is a structure (loop declaration, if statement, function declaration)
+	// check if this line is a structure (loop declaration, if statement, procedure declaration)
 	void (Parser::*parseAfter)(int, std::vector<bool (Parser::*)()>&) = nullptr; // content to parse after structure block e.g. 'else' after 'if' block
 	bool (Parser::*extraRule)() = nullptr; // extra rule for current structure e.g. allow 'break' in loop
 	if (parseStructure(extraRule, parseAfter))
@@ -248,7 +249,7 @@ bool Parser::parseNextLine(std::vector<bool(Parser::*)()>& extraRules)
 void Parser::parseBlock(std::vector<bool (Parser::*)()>& extraRules)
 {
 	trans.appendToBuffer("{");
-	trans.commitLine(inFunction, currStatementScope);
+	trans.commitLine(inProcedure, currStatementScope);
 
 	int blockScope = currStatementScope + 1;
 	currStatementScope = skipToNextRelevant();
@@ -271,18 +272,18 @@ void Parser::parseBlock(std::vector<bool (Parser::*)()>& extraRules)
 		throw SyntaxException("illegal attempt to increase indentation level");
 	}
 
-	// special case to add after function definition
-	if (inFunction && blockScope == 1)
+	// special case to add after procedure definition
+	if (inProcedure && blockScope == 1)
 	{
 		trans.appendToBuffer("\treturn null;");
-		trans.commitLine(inFunction, currStatementScope);
+		trans.commitLine(inProcedure, currStatementScope);
 	}
 
 	// add closing curly brace to indicate C++ end of block
 	int temp = currStatementScope;
 	currStatementScope = blockScope - 1;
 	trans.appendToBuffer("}");
-	trans.commitLine(inFunction, currStatementScope);
+	trans.commitLine(inProcedure, currStatementScope);
 	currStatementScope = temp;
 
 	names.endScope();
@@ -342,22 +343,22 @@ bool Parser::parseAssignment()
 	return false;
 }
 
-// parse a function call
-bool Parser::parseFuncCall()
+// parse a procedure call
+bool Parser::parseProcCall()
 {
-	const std::string& funcName = tokens.currToken();
+	const std::string& procName = tokens.currToken();
 
 	// [name]({params})
 	//  ^
-	if (NameManager::validName(funcName))
+	if (NameManager::validName(procName))
 	{
-		size_t funcCallTokenNum = tokens.getTokenNum();
+		size_t procCallTokenNum = tokens.getTokenNum();
 		tokens.advance();
 		// [name]({params})
 		//       ^
 		if (tokens.currToken() == "(")
 		{
-			appendAndAdvance("f_" + funcName + "(");
+			appendAndAdvance("f_" + procName + "(");
 
 			// [name]({params})
 			//         ^
@@ -368,12 +369,12 @@ bool Parser::parseFuncCall()
 			if (tokens.currToken() == ")")
 			{
 				appendAndAdvance(")");
-				names.addFunctionCall(funcName, numParams, funcCallTokenNum);
+				names.addProcedureCall(procName, numParams, procCallTokenNum);
 				return true;
 			}
-			throw SyntaxException("expected closing parenthesis for function call");
+			throw SyntaxException("expected closing parenthesis for procedure call");
 		}
-		tokens.setTokenNum(funcCallTokenNum);
+		tokens.setTokenNum(procCallTokenNum);
 		return false;
 	}
 	return false;
@@ -385,7 +386,7 @@ bool Parser::parseVar(bool lvalue)
 	const std::string& name = tokens.currToken();
 	if (NameManager::validName(name))
 	{
-		bool exists = names.varExists(name, inFunction);
+		bool exists = names.varExists(name, inProcedure);
 		parseVarName(lvalue ? VarParseMode::mayBeNew : VarParseMode::mustExist);
 
 		// also accept list, string, or map indexed values as variables
@@ -417,7 +418,7 @@ bool Parser::parseVar(bool lvalue)
 //
 // modes:	can be new (normal variable assignment)
 //			cannot be new (accessing variable in expression)
-//			function parameters - will accept any name; add to next scope
+//			procedure parameters - will accept any name; add to next scope
 //			'for' loop iteration variable - may exist or may need to add to next scope
 //			'for each' loop iteration variable - may not exist; add to next scope
 bool Parser::parseVarName(VarParseMode mode)
@@ -430,7 +431,7 @@ bool Parser::parseVarName(VarParseMode mode)
 		switch (mode)
 		{
 		case VarParseMode::mayBeNew:
-			if (names.varExists(name, inFunction))
+			if (names.varExists(name, inProcedure))
 			{
 				appendAndAdvance("_" + name);
 				break;
@@ -439,7 +440,7 @@ bool Parser::parseVarName(VarParseMode mode)
 			appendAndAdvance("var _" + name);
 			break;
 		case VarParseMode::mustExist:
-			if (names.varExists(name, inFunction))
+			if (names.varExists(name, inProcedure))
 			{
 				appendAndAdvance("_" + name);
 				break;
@@ -447,7 +448,7 @@ bool Parser::parseVarName(VarParseMode mode)
 			throw SyntaxException("use of undeclared variable " + name);
 
 		case VarParseMode::forVar:
-			if (names.varExists(name, inFunction))
+			if (names.varExists(name, inProcedure))
 			{
 				appendAndAdvance("_" + name);
 				break;
@@ -456,14 +457,14 @@ bool Parser::parseVarName(VarParseMode mode)
 			appendAndAdvance("var _" + name);
 			break;
 		case VarParseMode::forEachVar:
-			if (names.varExists(name, inFunction))
+			if (names.varExists(name, inProcedure))
 			{
 				throw SyntaxException("'for each' iteration variable must be a new variable");
 			}
 			names.addVarToNextScope(name);
 			appendAndAdvance("var _" + name);
 			break;
-		case VarParseMode::functionParam:
+		case VarParseMode::procedureParam:
 			names.addVarToNextScope(name);
 			appendAndAdvance("var _" + name);
 			break;
@@ -484,7 +485,7 @@ static const std::set<ParsedType> ALL = {
 		ParsedType::number, ParsedType::boolean, ParsedType::string,
 		ParsedType::list, ParsedType::map, ParsedType::null
 };
-// helper function for parseExprBinary function which checks integrity of binary operation by checking
+// helper function for parseExprBinary which checks integrity of binary operation by checking
 // if operation between two specified types is allowed
 void Parser::checkBinary(const std::string translatedBinOp, ParsedType& leftType,
 	const Operations& allowedOps, void (Parser::*rightFunction)(ParsedType&))
@@ -703,7 +704,7 @@ void Parser::parseTerm(ParsedType& t)
 			throw SyntaxException("expected closing '}'");
 		}
 	}
-	else if (parseFuncCall() || parseVar(false)) // check if this is valid variable-type expression indicating 'any' type
+	else if (parseProcCall() || parseVar(false)) // check if this is valid variable-type expression indicating 'any' type
 	{
 		t = ParsedType::any;
 	}
@@ -715,7 +716,7 @@ void Parser::parseTerm(ParsedType& t)
 
 // +----------------------------------------------+
 // |   Functions relevant to parsing structures   |
-// |   (if statements, loops, functions)          |
+// |   (if statements, loops, procedures)         |
 // +----------------------------------------------+
 
 // extra rules for parsing statements inside of a loop
@@ -730,20 +731,17 @@ bool Parser::extraParseInsideLoop()
 	return false;
 }
 
-// extra rules for parsing statements inside of a function
-bool Parser::extraParseInsideFunction()
+// extra rules for parsing statements inside of a procedure
+bool Parser::extraParseInsideProcedure()
 {
-	if (tokens.currToken() == "return")
+	if (tokens.currToken() == "exit")
+	{
+		appendAndAdvance("return null;");
+	}
+	else if (tokens.currToken() == "output")
 	{
 		appendAndAdvance("return ");
-		if (tokens.currToken() != "\n")
-		{
-			parseExpr();
-		}
-		else
-		{
-			trans.appendToBuffer("null");
-		}
+		parseExpr();
 		trans.appendToBuffer(";");
 		return true;
 	}
@@ -819,15 +817,15 @@ void Parser::parseAfterRepeat(int scope, std::vector<bool (Parser::*)()>& extraR
 	throw SyntaxException("expected 'while' or 'until' condition after 'repeat' block");
 }
 
-void Parser::afterFunction(int scope, std::vector<bool(Parser::*)()>& extraRules)
+void Parser::afterProcedure(int scope, std::vector<bool(Parser::*)()>& extraRules)
 {
-	// add empty line to separate functions
-	trans.commitLine(inFunction, currStatementScope);
-	inFunction = false;
+	// add empty line to separate generated functions
+	trans.commitLine(inProcedure, currStatementScope);
+	inProcedure = false;
 }
 
-// parse a programming structure such as a loop, if statement, or function declaration and return
-// whether a structure was found (and output values to parse function parameters if needed)
+// parse a programming structure such as a loop, if statement, or procedure declaration and return
+// whether a structure was found (and output values to parse parameters if needed)
 bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*& parseAfter)(int, std::vector<bool (Parser::*)()>&))
 {
 	const std::string* token = &tokens.currToken();
@@ -973,49 +971,53 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 		return true;
 	}
 
-	if (*token == "function")
+	if (*token == "procedure")
 	{
-		if (inFunction)
+		if (inProcedure)
 		{
-			throw SyntaxException("nested function illegal");
+			throw SyntaxException("nested procedure illegal");
 		}
 
 		appendAndAdvance("var ");
-		const std::string& funcName = tokens.currToken();
+		const std::string& procName = tokens.currToken();
 
-		// function [name]({params})
-		//           ^
-		if (NameManager::validName(funcName))
+		// procedure [name] -> {params}
+		//            ^
+		if (NameManager::validName(procName))
 		{
-			appendAndAdvance("f_" + funcName);
+			appendAndAdvance("f_" + procName + "(");
+			inProcedure = true;
 
-			// function [name]({params})
-			//                ^
-			if (tokens.currToken() == "(")
+			int numParams = 0;
+			// procedure [name] -> {params}
+			//                  ^
+			if (tokens.currToken() == "<-")
 			{
-				appendAndAdvance("(");
-				inFunction = true;
-
-				// function [name]({params})
-				//                  ^
-				int numParams = parseCommaSep(&Parser::parseFunctionParameter, ")");
-
-				// function [name]({params})
-				//                         ^
-				if (tokens.currToken() == ")")
+				tokens.advance();
+				if (tokens.currToken() == "\n")
 				{
-					appendAndAdvance(")");
-					names.addFunction(funcName, numParams);
-
-					additionalRule = &Parser::extraParseInsideFunction;
-					parseAfter = &Parser::afterFunction;
-					return true;
+					throw SyntaxException("expected procedure parameter list");
 				}
-				throw SyntaxException("expected closing parenthesis");
+				// procedure [name] -> {params}
+				//                      ^
+				numParams = parseCommaSep(&Parser::parseProcedureParameter, "\n");
 			}
-			throw SyntaxException("expected argument list after function declaration");
+
+			// also accept parameterless procedure definition
+			// procedure [name]
+			//            ^
+			if (tokens.currToken() == "\n")
+			{
+				trans.appendToBuffer(")");
+				names.addProcedure(procName, numParams);
+
+				additionalRule = &Parser::extraParseInsideProcedure;
+				parseAfter = &Parser::afterProcedure;
+				return true;
+			}
+			throw SyntaxException("invalid procedure declaration");
 		}
-		throw SyntaxException("invalid function name");
+		throw SyntaxException("invalid procedure name");
 	}
 
 	return false;
@@ -1026,9 +1028,9 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 // |   possible comma-separated list              |
 // +----------------------------------------------+
 
-void Parser::parseFunctionParameter()
+void Parser::parseProcedureParameter()
 {
-	parseVarName(VarParseMode::functionParam);
+	parseVarName(VarParseMode::procedureParam);
 }
 
 void Parser::parseIncludeFile()
@@ -1041,11 +1043,7 @@ void Parser::parseIncludeFile()
 
 	Parser p;
 	p.parse(inclFileName, false);
-	auto& funcs = p.names.getFunctionsDefined();
-	for (auto& e : funcs)
-	{
-		names.addFunction(e.name, e.numParams);
-	}
+	names.importProcedures(p.names.getProceduresDefined(), inclFileName);
 
 	trans.includeFile(inclFileName);
 	tokens.advance();
@@ -1070,7 +1068,7 @@ void Parser::parseMapEntry()
 }
 
 // parses a comma-separated list of items and returns number of items found
-int Parser::parseCommaSep(void (Parser::*parseItem)(), const std::string stop)
+int Parser::parseCommaSep(void (Parser::*parseItem)(), const std::string stop, bool printComma)
 {
 	int numItems = 0;
 
@@ -1084,7 +1082,7 @@ int Parser::parseCommaSep(void (Parser::*parseItem)(), const std::string stop)
 	// loop to handle further comma-separated items
 	while (tokens.currToken() == ",")
 	{
-		appendAndAdvance(", ");
+		appendAndAdvance(printComma ? ", " : "");
 		maybeMultiline();
 
 		(this->*parseItem)();

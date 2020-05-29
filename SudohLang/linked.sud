@@ -1,8 +1,8 @@
-function List()
+procedure List
 	list <- { "head" <- null, "size" <- 0 }
-	return list
+	output list
 
-function addNode(list, val)
+procedure addNode <- list, val
 	node <- {"val" <- val,"next" <- null}
 
 	if list["size"] = 0 then
@@ -15,7 +15,7 @@ function addNode(list, val)
 
 	list["size"] <- list["size"] + 1
 
-function printList(list)
+procedure printList <- list
 	curr <- list["head"]
 	print("[")
 	until curr = null do
@@ -31,7 +31,7 @@ addNode(list, 3)
 printList(list)
 
 
-function sort(arr)
+procedure sort <- arr
 	n <- length(arr)
 	for i <- 0 to n-2 do
 		for j <- 0 to n-i-2 do

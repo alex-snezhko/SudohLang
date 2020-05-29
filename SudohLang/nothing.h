@@ -1,4 +1,4 @@
 #include "sudoh.h"
 
-var f_asdf(var);
-var f_asdf();
+var f_sort(var, var);
+var f_asdf(var, var);

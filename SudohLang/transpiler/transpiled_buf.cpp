@@ -2,13 +2,13 @@
 
 // adds uncommited transpilation buffer to a transpiled content string after entire
 // line has been checked, and clears buffer
-void TranspiledBuffer::commitLine(bool inFunction, int currStatementScope)
+void TranspiledBuffer::commitLine(bool inProcedure, int currStatementScope)
 {
-	// determine whether to write new line to inside of main or to global scope (for functions)
-	std::string& commitTo = inFunction ? transpiledFunctions : transpiledMain;
+	// determine whether to write new line to inside of main or to global scope (for procedures)
+	std::string& commitTo = inProcedure ? transpiledProcedures : transpiledMain;
 
 	// correctly indent new line
-	for (int i = 0; i < currStatementScope + !inFunction; i++)
+	for (int i = 0; i < currStatementScope + !inProcedure; i++)
 	{
 		commitTo += "\t";
 	}
@@ -28,5 +28,5 @@ void TranspiledBuffer::includeFile(const std::string fileName)
 
 std::string TranspiledBuffer::fullTranspiled(bool main)
 {
-	return transpiledIncludes + "\n" + transpiledFunctions + (main ? transpiledMain : "");
+	return transpiledIncludes + "\n" + transpiledProcedures + (main ? transpiledMain : "");
 }

@@ -4,30 +4,30 @@
 const std::regex NameManager::NAME_RE = std::regex("[_a-zA-Z][_a-zA-Z0-9]*");
 
 // overloaded < operator for std::set ordering
-//bool NameManager::SudohFunction::operator<(const SudohFunction& other) const
-//{
-//	if (name == other.name)
-//	{
-//		return numParams < other.numParams;
-//	}
-//	return name < other.name;
-//}
+bool NameManager::SudohProcedure::operator<(const NameManager::SudohProcedure& other) const
+{
+	if (name == other.name)
+	{
+		return numParams < other.numParams;
+	}
+	return name < other.name;
+}
 
-// checks if the given name is a valid variable/function name
+// checks if the given name is a valid variable/procedure name
 bool NameManager::validName(const std::string& name)
 {
 	static const std::set<std::string> KEYWORDS = {
 		"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while", "until",
-		"for", "each", "return", "break", "continue", "mod", "function", "and", "or", "including" // TODO complete set
+		"for", "each", "output", "exit", "break", "continue", "mod", "procedure", "and", "or", "including" // TODO complete set
 	};
 
 	return std::regex_match(name, NAME_RE) && KEYWORDS.count(name) == 0;
 }
 
 // return whether a variable of given name exists at current scope
-bool NameManager::varExists(const std::string& name, bool inFunction)
+bool NameManager::varExists(const std::string& name, bool inProcedure)
 {
-	for (size_t i = inFunction; i < varsInScopeN.size(); i++)
+	for (size_t i = inProcedure; i < varsInScopeN.size(); i++)
 	{
 		if (varsInScopeN[i].count(name) != 0)
 		{
@@ -77,47 +77,61 @@ void NameManager::addVarToNextScope(const std::string& name)
 	varsToInject.push_back(name);
 }
 
-// check if all function calls made correspond to valid functions that have been declared
-void NameManager::checkFuncCallsValid()
+// check if all procedure calls made correspond to valid functions that have been declared
+void NameManager::checkProcCallsValid()
 {
-	// check that all function calls made in code are valid; this cannot be done while parsing because
-	// functions must not be declared before being used (as in C++ for instance)
-	for (const SudohFunctionCall& e : functionsUsed)
+	// check that all procedure calls made in code are valid; this cannot be done while parsing because
+	// procedures need not be declared before being used (as in C++ for instance)
+	for (const SudohProcedureCall& e : proceduresUsed)
 	{
-		auto matching = functionsDefined.find(e.func);
-		if (matching == functionsDefined.end())
+		auto matching = proceduresDefined.find(e.proc);
+		if (matching == proceduresDefined.end())
 		{
-			throw SyntaxException("attempted use of undeclared function '" + e.func.name + "' accepting " +
-				std::to_string(e.func.numParams) + " parameter(s)");
+			throw SyntaxException("attempted use of undeclared procedure '" + e.proc.name + "' accepting " +
+				std::to_string(e.proc.numParams) + " parameter(s)");
 		}
-		if (matching->numParams != e.func.numParams)
+		if (matching->numParams != e.proc.numParams)
 		{
-			throw SyntaxException("expected " + std::to_string(matching->numParams) + " parameter(s) for function '" +
-				matching->name + "' but got " + std::to_string(e.func.numParams));
+			throw SyntaxException("expected " + std::to_string(matching->numParams) + " parameter(s) for procedure '" +
+				matching->name + "' but got " + std::to_string(e.proc.numParams));
 		}
 	}
 }
 
 // add a function to the list of functions that have been declared
-void NameManager::addFunction(const std::string& name, int numParams)
+void NameManager::addProcedure(const std::string& name, int numParams)
 {
-	SudohFunction func = { name, numParams };
-	if (functionsDefined.count(func) != 0)
+	SudohProcedure func = { name, numParams };
+	if (proceduresDefined.count(func) != 0)
 	{
-		throw SyntaxException("function named '" + name + "' taking " + std::to_string(numParams) +
+		throw SyntaxException("procedure named '" + name + "' taking " + std::to_string(numParams) +
 			" parameter(s) has already been defined");
 	}
-	functionsDefined.insert(func);
-	newFunctions.push_back(func);
+	proceduresDefined.insert(func);
+	newProcedures.push_back(func);
+}
+
+// import new procedures from included file
+void NameManager::importProcedures(const std::vector<SudohProcedure>& newProcs, const std::string& fileName)
+{
+	for (auto& e : newProcs)
+	{
+		if (proceduresDefined.count(e) != 0)
+		{
+			throw SyntaxException("procedure named '" + e.name + "' taking " + std::to_string(e.numParams) +
+				" parameter(s) defined in '" + fileName + ".sud' has already been defined in a previously included file");
+		}
+		proceduresDefined.insert(e);
+	}
 }
 
 // add a function call to the list of all function calls made
-void NameManager::addFunctionCall(const std::string& name, int numParams, size_t tokenNum)
+void NameManager::addProcedureCall(const std::string& name, int numParams, size_t tokenNum)
 {
-	functionsUsed.push_back({ { name, numParams }, tokenNum });
+	proceduresUsed.push_back({ { name, numParams }, tokenNum });
 }
 
-const std::vector<NameManager::SudohFunction>& NameManager::getFunctionsDefined()
+const std::vector<NameManager::SudohProcedure>& NameManager::getProceduresDefined()
 {
-	return newFunctions;
+	return newProcedures;
 }

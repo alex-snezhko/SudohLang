@@ -4,49 +4,43 @@
 #include <vector>
 #include <regex>
 
-// keeps track of all variables and functions defined/used in a Sudoh source file
+// keeps track of all variables and procedures defined/used in a Sudoh source file
 class NameManager
 {
-	// simple struct to encapsulate function information
-	struct SudohFunction
+	// simple struct to encapsulate procedure information
+	struct SudohProcedure
 	{
 		std::string name;
 		int numParams;
 
 		// overloaded < operator for std::set ordering
-		bool operator<(const SudohFunction& other) const
-		{
-			if (name == other.name)
-			{
-				return numParams < other.numParams;
-			}
-			return name < other.name;
-		}
+		bool operator<(const SudohProcedure& other) const;
 	};
 
-	// simple struct to encapsulate function call information
-	struct SudohFunctionCall
+	// simple struct to encapsulate procedure call information
+	struct SudohProcedureCall
 	{
-		SudohFunction func;
+		SudohProcedure proc;
 		size_t tokenNum;
 	};
 
 	// list of variables that have been declared in each scope; variables in scope 0 are in index 0, etc
 	std::vector<std::set<std::string>> varsInScopeN;
 
-	// a set of all functions that are available to be used
-	std::set<SudohFunction> functionsDefined = {
+	// a set of all procedures that are available to be used
+	std::set<SudohProcedure> proceduresDefined = {
 		{ "print", 1 }, { "printLine", 1 }, { "length", 1 },
 		{ "string", 1 }, { "integer", 1 }, { "random", 0 },
 		{ "remove", 2 }, { "append", 2 }, { "insert", 3 }
 	};
-	// a list of programmer defined functions; does not include built-in functions as in functionsDefined
-	std::vector<SudohFunction> newFunctions;
-	// a list of all functions that the programmer has attempted to call
-	std::vector<SudohFunctionCall> functionsUsed;
+	// a list of programmer defined procedures in this source file; does not include
+	// built-in/imported procedures as in proceduresDefined
+	std::vector<SudohProcedure> newProcedures;
+	// a list of all procedures that the programmer has attempted to call
+	std::vector<SudohProcedureCall> proceduresUsed;
 
 	// keep buffer of variables to then inject into scope when specified scope is entered;
-	// used for function params and 'for' loop iteration variables
+	// used for procedure params and 'for' loop iteration variables
 	std::vector<std::string> varsToInject;
 	int injectionScope;
 
@@ -59,13 +53,14 @@ public:
 	bool varExists(const std::string& name, bool inFunction);
 	void addVar(const std::string& name);
 	void addVarToNextScope(const std::string& name);
-	void addFunction(const std::string& name, int numParams);
-	void addFunctionCall(const std::string& name, int numParams, size_t tokenNum);
+	void addProcedure(const std::string& name, int numParams);
+	void importProcedures(const std::vector<SudohProcedure>& newProcs, const std::string& fileName);
+	void addProcedureCall(const std::string& name, int numParams, size_t tokenNum);
 
 	void advanceScope();
 	void endScope();
 
-	void checkFuncCallsValid();
+	void checkProcCallsValid();
 
-	const std::vector<SudohFunction>& getFunctionsDefined();
+	const std::vector<SudohProcedure>& getProceduresDefined();
 };

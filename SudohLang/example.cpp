@@ -30,7 +30,7 @@ var f_asdf()
 	return null;
 }
 
-, int main()
+int main()
 {
 	f_asd(var(1));
 	f_asdf();

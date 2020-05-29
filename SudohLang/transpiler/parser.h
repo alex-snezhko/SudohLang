@@ -13,8 +13,8 @@ class Parser
 	NameManager names;
 	TokenIterator tokens;
 
-	// flag for determining whether the parser is currently inside of a function
-	bool inFunction;
+	// flag for determining whether the parser is currently inside of a procedure
+	bool inProcedure;
 	int currStatementScope;
 
 	int skipToNextRelevant();
@@ -30,15 +30,15 @@ class Parser
 	bool parseNextLine(std::vector<bool(Parser::*)()>& extraRules);
 	void parseBlock(std::vector<bool(Parser::*)()>& extraRules);
 	bool extraParseInsideLoop();
-	bool extraParseInsideFunction();
+	bool extraParseInsideProcedure();
 	void parseAfterIf(int scope, std::vector<bool(Parser::*)()>& extraRules);
 	void parseAfterRepeat(int scope, std::vector<bool(Parser::*)()>& extraRules);
-	void afterFunction(int scope, std::vector<bool(Parser::*)()>& extraRules);
+	void afterProcedure(int scope, std::vector<bool(Parser::*)()>& extraRules);
 	bool parseStructure(bool (Parser::*&additionalRule)(), void (Parser::*&parseAfter)(int, std::vector<bool (Parser::*)()>&));
 	bool parseAssignment();
-	bool parseFuncCall();
+	bool parseProcCall();
 	bool parseVar(bool lvalue);
-	enum struct VarParseMode { mayBeNew, mustExist, functionParam, forVar, forEachVar };
+	enum struct VarParseMode { mayBeNew, mustExist, procedureParam, forVar, forEachVar };
 	bool parseVarName(VarParseMode mode);
 
 	typedef std::map<ParsedType, std::set<ParsedType>> Operations;
@@ -52,11 +52,11 @@ class Parser
 	void parseExpr(const std::vector<ParsedType> allowed);
 	
 	void parseIncludeFile();
-	void parseFunctionParameter();
+	void parseProcedureParameter();
 	void parseMapEntry();
-	int parseCommaSep(void (Parser::*parseItem)(), const std::string stop);
+	int parseCommaSep(void (Parser::*parseItem)(), const std::string stop, bool printComma = true);
 
 public:
-	Parser() : inFunction(false), currStatementScope(0) {}
+	Parser() : inProcedure(false), currStatementScope(0) {}
 	void parse(const std::string fileName, bool main);
 };

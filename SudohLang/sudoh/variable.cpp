@@ -1,14 +1,16 @@
-#include "sudoh.h"
+#include "variable.h"
+#include "runtime_ex.h"
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <memory>
 
-size_t VariableHash::operator()(const Variable& v) const
+size_t Variable::VariableHash::operator()(const Variable& v) const
 {
 	switch (v.type)
 	{
 	case Type::number:
-		return std::hash<double>()(v.val.numVal.floatVal);
+		return std::hash<double>()(v.val.numVal.val);
 	case Type::boolean:
 		return std::hash<bool>()(v.val.boolVal);
 	case Type::map:
@@ -20,23 +22,6 @@ size_t VariableHash::operator()(const Variable& v) const
 	default:
 		runtimeException("cannot add key 'null' to map");
 	}
-}
-
-void runtimeException(const std::string msg)
-{
-	std::string output = "Runtime exception: " + msg + "; terminating program";
-	std::cout << "\n+";
-	for (int i = 0; i < output.length() + 4; i++)
-	{
-		std::cout << "-";
-	}
-	std::cout << "+\n|  " << output << "  |\n+";
-	for (int i = 0; i < output.length() + 4; i++)
-	{
-		std::cout << "-";
-	}
-	std::cout << "+\n";
-	exit(0);
 }
 
 std::string Variable::typeString() const
@@ -53,7 +38,7 @@ std::string Variable::typeString() const
 		return "list";
 	case Type::map:
 		return "map";
-	case Type::nul:
+	case Type::null:
 		return "null";
 	}
 }
@@ -66,8 +51,7 @@ Variable::Val::Val(Ref<List>* val) : listRef(val) {}
 Variable::Val::Val(Ref<Map>* val) : mapRef(val) {}
 Variable::Val::~Val() {}
 
-Variable::Variable() : type(Type::nul) {}
-Variable::Variable(int n) : type(Type::number), val(Number(n)) {}
+Variable::Variable() : type(Type::null) {}
 Variable::Variable(double n) : type(Type::number), val(Number(n)) {}
 Variable::Variable(Number n) : type(Type::number), val(n) {}
 Variable::Variable(bool b) : type(Type::boolean), val(b) {}
@@ -130,11 +114,15 @@ std::string Variable::toString() const
 	switch (type)
 	{
 	case Type::number:
+	{
+		std::stringstream s;
 		if (val.numVal.isInt)
 		{
-			return std::to_string(val.numVal.intVal);
+			s.precision(0);
 		}
-		return std::to_string(val.numVal.floatVal);
+		s << std::fixed << val.numVal.val;
+		return s.str();
+	}
 	case Type::boolean:
 		return std::to_string(val.boolVal);
 	case Type::string:
@@ -171,7 +159,7 @@ std::string Variable::toString() const
 		contents += " }";
 		return contents;
 	}
-	case Type::nul:
+	case Type::null:
 		return "null";
 	}
 }
@@ -310,7 +298,7 @@ Variable& Variable::operator=(const Variable& other)
 
 bool Variable::operator==(const Variable& other) const
 {
-	if (type == Type::nul || other.type == Type::nul)
+	if (type == Type::null || other.type == Type::null)
 	{
 		return type == other.type;
 	}
@@ -400,16 +388,16 @@ Variable& Variable::operator[](const Variable& index)
 		{
 			runtimeException("specified list index is not an integer");
 		}
-		int idx = index.val.numVal.intVal;
-		if (idx < 0)
+		if (index.val.numVal.val < 0)
 		{
 			runtimeException("cannot modify list at index below 0");
 		}
 
+		size_t idx = (size_t)index.val.numVal.val;
 		List& list = val.listRef->val;
 
 		// expand list if index above length
-		for (int i = list.size(); i <= idx; i++)
+		for (size_t i = list.size(); i <= idx; i++)
 		{
 			list.push_back(null);
 		}
@@ -426,31 +414,34 @@ Variable& Variable::operator[](const Variable& index)
 // non-reference equivalent of [] operator; for accesses rather than modifications
 Variable Variable::at(const Variable& index) const
 {
-	int i;
 	switch (type)
 	{
 	case Type::string:
+	{
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
 			runtimeException("specified string index is not an integer");
 		}
-		i = index.val.numVal.intVal;
-		if (i < 0 || i >= val.stringVal.length())
+		double d = val.numVal.val;
+		if (d < 0 || d >= val.stringVal.length())
 		{
 			runtimeException("specified string index out of bounds");
 		}
-		return std::string(1, val.stringVal[i]);
+		return std::string(1, val.stringVal[(size_t)index.val.numVal.val]);
+	}
 	case Type::list:
+	{
 		if (index.type != Type::number || !index.val.numVal.isInt)
 		{
 			runtimeException("specified list index is not an integer");
 		}
-		i = index.val.numVal.intVal;
-		if (i < 0 || i >= val.listRef->val.size())
+		double d = val.numVal.val;
+		if (d < 0 || d >= val.stringVal.length())
 		{
 			runtimeException("specified list index out of bounds");
 		}
-		return val.listRef->val[i];
+		return val.listRef->val[(size_t)index.val.numVal.val];
+	}
 	case Type::map:
 		return val.mapRef->val[index];
 	}

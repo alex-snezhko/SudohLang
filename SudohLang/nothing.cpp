@@ -1,14 +1,14 @@
 #include "nothing.h"
 
-var f_asdf(var _asd)
+var f_sort(var _a, var _b)
 {
-	var _a = var(1);
+	_a = var(1);
 	return null;
 }
 
-var f_asdf()
+var f_asdf(var _a, var _asd)
 {
-	var _b = var(1);
+	_a = var(1);
 	return null;
 }
 
