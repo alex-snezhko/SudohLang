@@ -5,7 +5,6 @@
 #include <sstream>
 #include <algorithm>
 
-// TODO complete all sudoh functions; removeLast, remove (accept list and map), add input() etc
 // returns string representation of a ParsedType enum
 std::string typeToString(const ParsedType t)
 {
@@ -159,11 +158,11 @@ void Parser::parse(const std::string fileName, bool main)
 	}
 
 	std::ofstream out;
-	out.open("sudoh/_" + fileName + ".h");
+	out.open(fileName + ".h");
 	out << transpiledHeader;
 	out.close();
 
-	out.open("sudoh/_" + fileName + ".cpp");
+	out.open(fileName + ".cpp");
 	out << trans.fullTranspiled(main);
 	out.close();
 }
@@ -653,7 +652,8 @@ void Parser::parseTerm(ParsedType& t)
 	// +---------------------------------------------------------------+
 	else if (token == "true" || token == "false") // check for boolean
 	{
-		appendAndAdvance("var(" + token + ")");
+		// 'True' and 'False' will be macros
+		appendAndAdvance(token == "true" ? "True" : "False");
 		t = ParsedType::boolean;
 	}
 	else if (std::regex_match(token, NUMBER_RE)) // check for number
@@ -663,7 +663,7 @@ void Parser::parseTerm(ParsedType& t)
 	}
 	else if (std::regex_match(token, STRING_RE)) // check for string
 	{
-		appendAndAdvance("var(std::string(" + token + "))");
+		appendAndAdvance("var(" + token + ")");
 		t = ParsedType::string;
 	}
 	else if (token == "null") // check for null value
@@ -673,7 +673,7 @@ void Parser::parseTerm(ParsedType& t)
 	}
 	else if (token == "[") // check for list
 	{
-		appendAndAdvance("var(List{ ");
+		appendAndAdvance("var(list{ ");
 		maybeMultiline();
 		parseCommaSep(&Parser::parseExpr, "]");
 
@@ -690,7 +690,7 @@ void Parser::parseTerm(ParsedType& t)
 	}
 	else if (token == "{") // check for map
 	{
-		appendAndAdvance("var(Map{ ");
+		appendAndAdvance("var(map{ ");
 		maybeMultiline();
 		parseCommaSep(&Parser::parseMapEntry, "}");
 		maybeMultiline();

@@ -21,9 +21,6 @@
     <ClCompile Include="sudoh\variable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sudoh\linked.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="transpiler\parser.h">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -39,13 +36,10 @@
     <ClCompile Include="transpiler\token_iter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sudoh\number.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="sudoh\sudoh.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="sudoh\runtime_ex.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sudoh\sudohstdlib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -66,13 +60,13 @@
     <ClInclude Include="transpiler\syntax_ex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="sudoh\number.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="sudoh\runtime_ex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sudoh\variable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sudoh\sudohstdlib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sudoh\sudoh.h">

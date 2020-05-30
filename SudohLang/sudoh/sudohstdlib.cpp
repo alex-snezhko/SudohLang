@@ -1,8 +1,13 @@
-#include "sudoh.h"
+#include "sudohstdlib.h"
 #include "runtime_ex.h"
 #include <iostream>
 #include <ctime>
 #include <cmath>
+
+inline bool isInt(double d) // TODO old; replace
+{
+	return abs(round(d) - d) < 0.00000001;
+}
 
 double floatVal(std::string which, std::string procedure, const Variable& var)
 {
@@ -10,7 +15,7 @@ double floatVal(std::string which, std::string procedure, const Variable& var)
 	{
 		runtimeException(which + " parameter of procedure '" + procedure + "' must be of type 'number'");
 	}
-	return var.val.numVal.val;
+	return var.val.numVal;
 }
 
 template <typename T>
@@ -36,14 +41,14 @@ Variable f_input()
 Variable f_print(Variable str)
 {
 	std::cout << str.toString();
-	return null;
+	return Variable();
 }
 
 // prints a variable on a new line to standard output
 Variable f_printLine(Variable str)
 {
 	std::cout << str.toString() << std::endl;
-	return null;
+	return Variable();
 }
 
 // return the length of a container
@@ -52,9 +57,9 @@ Variable f_length(Variable var)
 	switch (var.type)
 	{
 	case Type::list:
-		return (double)var.val.listRef->val.size();
+		return (double)var.val.listRef->size();
 	case Type::map:
-		return (double)var.val.mapRef->val.size();
+		return (double)var.val.mapRef->size();
 	case Type::string:
 		return (double)var.val.stringVal.length();
 	}
@@ -74,11 +79,11 @@ Variable f_integer(Variable var)
 	{
 		runtimeException("parameter of 'integer' must be a number");
 	}
-	if (var.val.numVal.isInt)
+	if (isInt(var.val.numVal))
 	{
 		return var;
 	}
-	return floor(var.val.numVal.val);
+	return floor(var.val.numVal);
 }
 
 Variable f_number(Variable str)
@@ -96,35 +101,35 @@ Variable f_number(Variable str)
 	}
 	catch (std::invalid_argument&)
 	{
-		return null;
+		return Variable();
 	}
 }
 
 // returns the ascii character represented by num
 Variable f_ascii(Variable num)
 {
-	if (num.type != Type::number || !num.val.numVal.isInt)
+	if (num.type != Type::number || !isInt(num.val.numVal))
 	{
 		runtimeException("parameter of 'ascii' must be an integer");
 	}
 
-	double d = num.val.numVal.val;
+	double d = num.val.numVal;
 	if (d < 0.0 || d >= CHAR_MAX)
 	{
 		runtimeException("parameter of 'ascii' outside of range of ascii character codes");
 	}
-	return std::string(1, (char)num.val.numVal.val);
+	return std::string(1, (char)d);
 }
 
 // returns a random integer
 Variable f_random(Variable range)
 {
-	if (range.type != Type::number || !range.val.numVal.isInt)
+	if (range.type != Type::number || !isInt(range.val.numVal))
 	{
 		runtimeException("parameter of 'random' must be an integer");
 	}
 
-	double d = range.val.numVal.val;
+	double d = range.val.numVal;
 	if (d < 1.0 || d >= SIZE_MAX)
 	{
 		runtimeException("parameter of 'random' must be an integer in the range [1, " + std::to_string(SIZE_MAX) + ")");
@@ -136,7 +141,7 @@ Variable f_random(Variable range)
 		srand(time(nullptr));
 		seedSet = true;
 	}
-	return (double)(rand() % (size_t)range.val.numVal.val);
+	return (double)(rand() % (size_t)d);
 }
 
 // removes an element from a list or map
@@ -144,31 +149,31 @@ Variable f_remove(Variable var, Variable index)
 {
 	if (var.type == Type::list)
 	{
-		Variable::List& l = var.val.listRef->val;
-		if (index.type != Type::number || !index.val.numVal.isInt)
+		Variable::List& l = *var.val.listRef;
+		if (index.type != Type::number || !isInt(index.val.numVal))
 		{
 			runtimeException("second parameter of 'remove' on container of type 'list' must be an integer number");
 		}
 
-		double d = index.val.numVal.val;
+		double d = index.val.numVal;
 		if (d < 0.0 || d >= l.size())
 		{
 			runtimeException("second parameter of 'remove' is out of bounds of list");
 		}
 
-		l.erase(l.begin() + (size_t)index.val.numVal.val);
-		return null;
+		l.erase(l.begin() + (size_t)d);
+		return Variable();
 	}
 	if (var.type == Type::map)
 	{
-		Variable::Map& m = var.val.mapRef->val;
+		Variable::Map& m = *var.val.mapRef;
 		auto e = m.find(index);
 		if (e == m.end())
 		{
 			runtimeException("element attempted to be removed from map does not exist in the map");
 		}
 		m.erase(e);
-		return null;
+		return Variable();
 	}
 
 	runtimeException("illegal call to 'remove' on type " + var.typeString() +
@@ -183,9 +188,8 @@ Variable f_removeLast(Variable list)
 		runtimeException("first parameter of 'remove' must be a list");
 	}
 
-	Variable::List& l = list.val.listRef->val;
-	l.pop_back();
-	return null;
+	list.val.listRef->pop_back();
+	return Variable();
 }
 
 // appends a new element to a list
@@ -196,8 +200,8 @@ Variable f_append(Variable list, Variable value)
 		runtimeException("first parameter of 'append' must be a list");
 	}
 
-	list.val.listRef->val.push_back(value);
-	return null;
+	list.val.listRef->push_back(value);
+	return Variable();
 }
 
 // inserts an element into a list at specified index
@@ -208,21 +212,21 @@ Variable f_insert(Variable list, Variable index, Variable value)
 		runtimeException("first parameter of 'insert' must be a list");
 	}
 
-	if (index.type != Type::number || index.val.numVal.isInt)
+	if (index.type != Type::number || isInt(index.val.numVal))
 	{
 		runtimeException("second parameter of 'insert' must be an integer number");
 	}
 
-	Variable::List& l = list.val.listRef->val;
-	double d = index.val.numVal.val;
+	Variable::List& l = *list.val.listRef;
+	double d = index.val.numVal;
 
 	if (d < 0.0 || d >= l.size())
 	{
 		runtimeException("second parameter of 'insert' is out of bounds of list");
 	}
 
-	l.insert(l.begin() + (size_t)index.val.numVal.val, value);
-	return null;
+	l.insert(l.begin() + (size_t)d, value);
+	return Variable();
 }
 
 Variable f_substring(Variable str, Variable begin, Variable end)
@@ -232,23 +236,23 @@ Variable f_substring(Variable str, Variable begin, Variable end)
 		runtimeException("first parameter of 'substring' must be a string");
 	}
 
-	if (begin.type != Type::number || !begin.val.numVal.isInt)
+	if (begin.type != Type::number || !isInt(begin.val.numVal))
 	{
 		runtimeException("second parameter of 'substring' must be an integer");
 	}
 	const std::string& s = str.val.stringVal;
-	double d1 = begin.val.numVal.val;
+	double d1 = begin.val.numVal;
 	if (d1 < 0.0 || d1 >= s.length())
 	{
 		runtimeException("second parameter of 'substring' outside of string bounds");
 	}
 	size_t b = (size_t)d1;
 
-	if (end.type != Type::number || !end.val.numVal.isInt)
+	if (end.type != Type::number || !isInt(end.val.numVal))
 	{
 		runtimeException("third parameter of 'substring' must be an integer");
 	}
-	double d2 = end.val.numVal.val;
+	double d2 = end.val.numVal;
 	if (d2 < 0.0 || d2 >= s.length())
 	{
 		runtimeException("third parameter of 'substring' outside of string bounds");

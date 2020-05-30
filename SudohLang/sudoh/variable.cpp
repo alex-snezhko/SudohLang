@@ -5,20 +5,37 @@
 #include <iostream>
 #include <memory>
 
+constexpr double EPSILON = 0.00001;
+
+// used for converting a 'number' (double) to an unsigned index
+size_t intVal(double d)
+{
+	double rounded = round(d);
+	if (abs(rounded - d) < EPSILON)
+	{
+		if (rounded < 0.0)
+		{
+			runtimeException("specified index may not be negative");
+		}
+		return (size_t)rounded;
+	}
+	runtimeException("specified index is not an integer");
+}
+
 size_t Variable::VariableHash::operator()(const Variable& v) const
 {
 	switch (v.type)
 	{
 	case Type::number:
-		return std::hash<double>()(v.val.numVal.val);
+		return std::hash<double>()(v.val.numVal);
 	case Type::boolean:
 		return std::hash<bool>()(v.val.boolVal);
-	case Type::map:
-		return std::hash<Ref<Map>*>()(v.val.mapRef);
-	case Type::list:
-		return std::hash<Ref<List>*>()(v.val.listRef);
 	case Type::string:
 		return std::hash<std::string>()(v.val.stringVal);
+	case Type::list:
+		return std::hash<std::shared_ptr<List>>()(v.val.listRef);
+	case Type::map:
+		return std::hash<std::shared_ptr<Map>>()(v.val.mapRef);
 	default:
 		runtimeException("cannot add key 'null' to map");
 	}
@@ -44,20 +61,19 @@ std::string Variable::typeString() const
 }
 
 Variable::Val::Val() : boolVal(false) {}
-Variable::Val::Val(Number val) : numVal(val) {}
 Variable::Val::Val(bool val) : boolVal(val) {}
+Variable::Val::Val(double val) : numVal(val) {}
 Variable::Val::Val(std::string val) : stringVal(val) {}
-Variable::Val::Val(Ref<List>* val) : listRef(val) {}
-Variable::Val::Val(Ref<Map>* val) : mapRef(val) {}
+Variable::Val::Val(std::shared_ptr<List> val) : listRef(val) {}
+Variable::Val::Val(std::shared_ptr<Map> val) : mapRef(val) {}
 Variable::Val::~Val() {}
 
 Variable::Variable() : type(Type::null) {}
-Variable::Variable(double n) : type(Type::number), val(Number(n)) {}
-Variable::Variable(Number n) : type(Type::number), val(n) {}
-Variable::Variable(bool b) : type(Type::boolean), val(b) {}
+Variable::Variable(double n) : type(Type::number), val(n) {}
+Variable::Variable(Bool b) : type(Type::boolean), val(b == Bool::t) {}
 Variable::Variable(std::string s) : type(Type::string), val(s) {}
-Variable::Variable(List l) : type(Type::list), val(new Ref<List>(l)) {}
-Variable::Variable(Map m) : type(Type::map), val(new Ref<Map>(m)) {}
+Variable::Variable(std::shared_ptr<List> l) : type(Type::list), val(l) {}
+Variable::Variable(std::shared_ptr<Map> m) : type(Type::map), val(m) {}
 
 Variable::Variable(const Variable& other) : type(other.type) { setValue(other); }
 
@@ -77,12 +93,10 @@ void Variable::setValue(const Variable& other)
 		new(&val.stringVal) std::string(other.val.stringVal);
 		break;
 	case Type::list:
-		val.listRef = other.val.listRef;
-		val.listRef->refCount++;
+		new(&val.listRef) std::shared_ptr<List>(other.val.listRef);
 		break;
 	case Type::map:
-		val.mapRef = other.val.mapRef;
-		val.mapRef->refCount++;
+		new(&val.listRef) std::shared_ptr<Map>(other.val.mapRef);
 		break;
 	}
 }
@@ -91,17 +105,11 @@ void Variable::freeMem()
 {
 	if (type == Type::list)
 	{
-		if (--val.listRef->refCount == 0)
-		{
-			delete val.listRef;
-		}
+		val.listRef.~shared_ptr(); // TODO ensure this does not cause mem leak
 	}
 	else if (type == Type::map)
 	{
-		if (--val.mapRef->refCount == 0)
-		{
-			delete val.mapRef;
-		}
+		val.mapRef.~shared_ptr();
 	}
 	else if (type == Type::string)
 	{
@@ -116,11 +124,12 @@ std::string Variable::toString() const
 	case Type::number:
 	{
 		std::stringstream s;
-		if (val.numVal.isInt)
+		double d = val.numVal;
+		if (abs(round(d) - d) < EPSILON)
 		{
 			s.precision(0);
 		}
-		s << std::fixed << val.numVal.val;
+		s << std::fixed << d;
 		return s.str();
 	}
 	case Type::boolean:
@@ -131,7 +140,7 @@ std::string Variable::toString() const
 	{
 		std::string contents = "[ ";
 		bool first = true;
-		for (const Variable& e : val.listRef->val)
+		for (const Variable& e : *val.listRef)
 		{
 			if (!first)
 			{
@@ -147,7 +156,7 @@ std::string Variable::toString() const
 	{
 		std::string contents = "{ ";
 		bool first = true;
-		for (std::pair<const Variable, Variable>& e : val.mapRef->val)
+		for (auto& e : *val.mapRef)
 		{
 			if (!first)
 			{
@@ -219,7 +228,7 @@ Variable Variable::operator%(const Variable& other) const
 {
 	if (type == Type::number && other.type == Type::number)
 	{
-		return val.numVal % other.val.numVal;
+		return fmod(val.numVal, other.val.numVal);
 	}
 
 	runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
@@ -277,7 +286,7 @@ void Variable::operator%=(const Variable& other)
 {
 	if (type == Type::number && other.type == Type::number)
 	{
-		val.numVal %= other.val.numVal;
+		val.numVal = fmod(val.numVal, other.val.numVal);
 	}
 	else
 	{
@@ -384,28 +393,19 @@ Variable& Variable::operator[](const Variable& index)
 		runtimeException("illegal attempt to modify string");
 	case Type::list:
 	{
-		if (index.type != Type::number || !index.val.numVal.isInt)
-		{
-			runtimeException("specified list index is not an integer");
-		}
-		if (index.val.numVal.val < 0)
-		{
-			runtimeException("cannot modify list at index below 0");
-		}
-
-		size_t idx = (size_t)index.val.numVal.val;
-		List& list = val.listRef->val;
+		List& list = *val.listRef;
+		size_t idx = intVal(index.val.numVal);
 
 		// expand list if index above length
 		for (size_t i = list.size(); i <= idx; i++)
 		{
-			list.push_back(null);
+			list.push_back(Variable());
 		}
 
 		return list[idx];
 	}
 	case Type::map:
-		return val.mapRef->val[index];
+		return (*val.mapRef)[index];
 	}
 
 	runtimeException("cannot index into type " + typeString());
@@ -418,32 +418,34 @@ Variable Variable::at(const Variable& index) const
 	{
 	case Type::string:
 	{
-		if (index.type != Type::number || !index.val.numVal.isInt)
+		size_t idx = intVal(index.val.numVal);
+		if (idx >= val.stringVal.length())
 		{
-			runtimeException("specified string index is not an integer");
+			runtimeException("specified index '" + std::to_string(idx) + "' out of bounds of string (length " +
+				std::to_string(val.stringVal.length()) + ")");
 		}
-		double d = val.numVal.val;
-		if (d < 0 || d >= val.stringVal.length())
-		{
-			runtimeException("specified string index out of bounds");
-		}
-		return std::string(1, val.stringVal[(size_t)index.val.numVal.val]);
+		return std::string(1, val.stringVal[idx]);
 	}
 	case Type::list:
 	{
-		if (index.type != Type::number || !index.val.numVal.isInt)
+		size_t idx = intVal(index.val.numVal);
+		if (idx >= val.stringVal.length())
 		{
-			runtimeException("specified list index is not an integer");
+			runtimeException("specified index '" + std::to_string(idx) + "' out of bounds of list (length " +
+				std::to_string(val.listRef->size()) + ")");
 		}
-		double d = val.numVal.val;
-		if (d < 0 || d >= val.stringVal.length())
-		{
-			runtimeException("specified list index out of bounds");
-		}
-		return val.listRef->val[(size_t)index.val.numVal.val];
+		return (*val.listRef)[idx];
 	}
 	case Type::map:
-		return val.mapRef->val[index];
+	{
+		Map& m = *val.mapRef;
+		auto item = m.find(index);
+		if (item == m.end())
+		{
+			runtimeException("key '" + index.toString() + "' does not exist in the map");
+		}
+		return m[index];
+	}
 	}
 	
 	runtimeException("cannot index into type " + typeString());
@@ -470,10 +472,10 @@ Variable::VariableIterator::VariableIterator(Variable* var, bool begin) : contai
 		stringIt = begin ? var->val.stringVal.begin() : var->val.stringVal.end();
 		break;
 	case Type::list:
-		listIt = begin ? var->val.listRef->val.begin() : var->val.listRef->val.end();
+		listIt = begin ? var->val.listRef->begin() : var->val.listRef->end();
 		break;
 	case Type::map:
-		mapIt = begin ? var->val.mapRef->val.begin() : var->val.mapRef->val.end();
+		mapIt = begin ? var->val.mapRef->begin() : var->val.mapRef->end();
 		break;
 	default:
 		runtimeException("cannot iterate over type " + var->typeString());

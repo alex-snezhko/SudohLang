@@ -1,17 +1,11 @@
 #pragma once
-#include "number.h"
 #include <vector>
 #include <unordered_map>
-
-template <typename T>
-struct Ref
-{
-	T val;
-	int refCount;
-	Ref(T v) : refCount(1), val(v) {}
-};
+#include <memory>
 
 enum class Type { number, boolean, string, list, map, null, charRef };
+
+enum class Bool { t, f };
 class Variable
 {
 	struct VariableHash
@@ -19,9 +13,11 @@ class Variable
 		size_t operator()(const Variable& v) const;
 	};
 
+public:
 	typedef std::vector<Variable> List;
 	typedef std::unordered_map<Variable, Variable, VariableHash> Map;
 
+private:
 	// standard library functions which have access to Variable members
 	friend Variable f_length(Variable var);
 	friend Variable f_number(Variable str);
@@ -40,18 +36,20 @@ class Variable
 	Type type;
 	union Val
 	{
-		Number numVal;
+		double numVal;
 		bool boolVal;
 		std::string stringVal;
-		Ref<List>* listRef; // TODO debug that ref count checking works properly
-		Ref<Map>* mapRef;
+		std::shared_ptr<List> listRef;
+		std::shared_ptr<Map> mapRef;
+		//Ref<List>* listRef; // TODO debug that ref count checking works properly
+		//Ref<Map>* mapRef;
 
 		Val();
-		Val(Number val);
+		Val(double val);
 		Val(bool val);
 		Val(std::string val);
-		Val(Ref<List>* val);
-		Val(Ref<Map>* val);
+		Val(std::shared_ptr<List> val);
+		Val(std::shared_ptr<Map> val);
 		~Val();
 	} val;
 
@@ -61,11 +59,10 @@ class Variable
 public:
 	Variable();
 	Variable(double n);
-	Variable(Number n);
-	Variable(bool b);
+	Variable(Bool b);
 	Variable(std::string s);
-	Variable(List l);
-	Variable(Map m);
+	Variable(std::shared_ptr<List> l);
+	Variable(std::shared_ptr<Map> m);
 
 	Variable(const Variable& other);
 
@@ -117,5 +114,3 @@ public:
 	VariableIterator begin();
 	VariableIterator end();
 };
-
-const Variable null = Variable();

@@ -1,5 +1,5 @@
 // example
-including linked, nothing
+including linked
 
 procedure asd <- asdf
 	for i <- 0 to 10 do
@@ -17,3 +17,4 @@ procedure asdf
 
 asd(1)
 asdf()
+a <- -1.23

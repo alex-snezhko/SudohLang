@@ -29,19 +29,3 @@ addNode(list, 1)
 addNode(list, 2)
 addNode(list, 3)
 printList(list)
-
-
-procedure sort <- arr
-	n <- length(arr)
-	for i <- 0 to n-2 do
-		for j <- 0 to n-i-2 do
-			if arr[j] > arr[j + 1] then
-				temp <- arr[j]
-				arr[j] <- arr[j + 1]
-				arr[j + 1] <- temp
-
-arr <- []
-for i <- 0 to 1000 do
-	arr[i] <- random() mod 100
-sort(arr)
-printLine(arr)

@@ -1,8 +1,9 @@
 # Sudoh Language Documentation
+
 ## Preface
-This is a (mostly) comprehensive documentation of the Sudoh programming language, with included code examples to better
+This document contains documentation of the Sudoh programming language, with included code samples to better
 illustrate Sudoh's syntax/features. Sudoh is a simple language, and any prior experience with essentially any high-level
-programming language will make getting started with Sudoh a breeze.
+programming language should make getting started with Sudoh an easy task.
 
 
 ## Basic information
@@ -83,18 +84,26 @@ hello <- a         // this is now legal; a was previously declared at the curren
 ## Types
 
 ### Number
-One of the more simple types in Sudoh is the Number. A number may have either an integer or decimal (floating-point) value, and
-negative values are valid as well. Often times in a Sudoh program, only integer numbers are acceptable for certain operations e.g.
-indexing into a list; thus, there is technically a distinction between integer numbers and floating-point numbers. 
+One of the more simple types in Sudoh is the Number. A number may contain any positive or negative real number value decimal (bound
+by the user's double-precision floating point number boundaries). Sometimes in a Sudoh program, only integer numbers are acceptable
+for certain operations e.g. indexing into a list. To handle this, a number which is *close enough* to an integer (+/- 0.00001) is
+treated as one. There are 5 valid arithmetic operators that can be used on two numbers: `+` (addition), `-` (subtraction), `*`
+(multiplication), `/` (floating point division), and `mod` (modulus division). The precedence of arithmetic expression evaluation is
+parentheses -> multiplication/division -> addition/subtraction.
+```
+a <- 1 + (2 * 3) - 4   // a = 3
+m <- 5 mod 2           // m = 1
+```
 
 ### Boolean
 The boolean type is used primarily for program logic flow purposes, such as in `if` or `while`/`until` conditions. A boolean may
-possess values of either `true` or `false`. Compound conditions may be formed with the `and`/`or` operators.
+possess values of either `true` or `false`. Compound conditions may be formed with the `and`/`or` operators and may be inverted
+with `not`.
 ```
-true and true    // true
-true and false   // false
-true or false    // true
-false or false   // false
+true and false       // false
+true or false        // true
+not false            // true
+not false and false  // false
 ```
 
 ### String
@@ -188,19 +197,16 @@ else if inp > 4 then
 
 ### Comparisons
 There are 6 comparison operators in Sudoh. They are:
--   `=` (is equal to); valid between variables of the same type, or between a variable and `null`
-    ```
-    var <- 5
-
-    ```
+- `=` (is equal to); valid between variables of the same type, or between a variable and `null`
 - `!=` (is not equal to); valid between variables of the same type, or between a variable and `null`
-- `<` (is less than); valid between variables of the same type
-- `<=` (is less than or equal to); valid between variables of the same type
-- `>` (is greater than); valid between variables of the same type
-- `>=` (is greater than or equal to); valid between variables of the same type
+- `<` (is less than); valid between two numbers
+- `<=` (is less than or equal to); valid between two numbers
+- `>` (is greater than); valid between two numbers
+- `>=` (is greater than or equal to); valid between two numbers
 
 ### Arithmetic operations
-// TODO
+There are 5 binary operators in Sudoh. They are:
+- `+` ()
 
 
 ## Programming structures
@@ -237,7 +243,7 @@ while i < 5 do
 
 // this loop will run 4 times
 str <- ""
-until str = "aaaa"
+until str = "aaaa" do
     str <- str + "a"
 
 // infinite loop
@@ -265,17 +271,22 @@ for i <- 0 to -1 do
 ```
 Sudoh also has a `for each` loop which iterates over all of the elements of a collection (string, list, or map) and runs
 a block of code for each element in the collection. The structure of a `for each` loop statement is as follows:
-`for each [iteration variable] in [collection] do`
+`for each [iteration variable] in [collection] do`. `for each` loop on a string: iterate over each character in the string;
+on a list: iterate over each element in the list; on a map: iterate over each key in the map
 ```
-// 'for each' on a string will iterate over each character in the string
 for each c in "asdf" do
     print(c + " ")
 // 'a s d f ' will be printed
 
 list <- [0, 1, 2, 3]
-for each i in list do
-    print("[" + i + "]")
+for each e in list do
+    print("[" + e + "]")
 // '[0][1][2][3]' will be printed
+
+map <- { "a" <- 0, "b" <- "apple", 3 <- null }
+for each key in map do
+    print(string(key) + ": " + map[key] + "  ")
+// 'a: 0  b: apple  3: null  ' will be printed
 ```
 
 ### `repeat` loops
@@ -494,6 +505,15 @@ c <- a + b                 // c = 127.5
 invalid <- number("asdf")  // invalid = null
 ```
 
+### `substring` input: (string, begin, end); output: string
+`substring` is a procedure which outputs a portion of the specified string, beginning at index `begin` and ending
+before index `end`
+```
+str <- "Apple Banana"
+apple <- substring(str, 0, 5)              // apple = "Apple"
+banana <- substring(str, 6, length(str))   // banana = "Banana"
+```
+
 ### `integer` input: number; output: integer
 `integer` is a procedure which outputs a truncated integer value of an input number.
 ```
@@ -554,6 +574,16 @@ remove(map, "c")      // invalid; there is no key "c" in the map
 list <- [1, 2, 3]
 removeLast(list)      // list = [1, 2]
 removeLast(list)      // list = [1]
+```
+
+### `type` input: variable; output: string
+`type` is a procedure which outputs a string representation of the input variable's type
+```
+type(123)    // "number"
+type(true)   // "boolean"
+type("a")    // "string"
+type([])     // "list"
+type({})     // "map"
 ```
 
 ### `pow` input: (number, power)
