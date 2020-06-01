@@ -5,23 +5,75 @@
 #include <iostream>
 #include <memory>
 
-constexpr double EPSILON = 0.00001;
+// epsilon used for checking if a number (inherently type double) can be said to be an integer
+constexpr double EPSILON = 0.0001;
 
-// used for converting a 'number' (double) to an unsigned index
-size_t intVal(double d)
+// +------------------------------------------+
+// |   Helper functions for asserting valid   |
+// |   types for various operations           |
+// +------------------------------------------+
+
+bool Variable::stringCheck(const Variable& var, std::string& out)
 {
-	double rounded = round(d);
-	if (abs(rounded - d) < EPSILON)
+	if (var.type == Type::string)
 	{
-		if (rounded < 0.0)
-		{
-			runtimeException("specified index may not be negative");
-		}
-		return (size_t)rounded;
+		out = var.val.stringVal;
+		return true;
 	}
-	runtimeException("specified index is not an integer");
+	return false;
 }
 
+bool Variable::indexCheck(const Variable& var, size_t& out)
+{
+	if (var.type == Type::number)
+	{
+		double rounded = round(var.val.numVal);
+		if (rounded >= 0.0 && rounded < SIZE_MAX && abs(rounded - var.val.numVal) < EPSILON)
+		{
+			out = (size_t)rounded;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Variable::numCheck(const Variable& var, double& out)
+{
+	if (var.type == Type::number)
+	{
+		out = var.val.numVal;
+		return true;
+	}
+	return false;
+}
+
+bool Variable::listCheck(const Variable& var, List*& out)
+{
+	if (var.type == Type::list)
+	{
+		out = var.val.listRef.get();
+		return true;
+	}
+	return false;
+}
+
+size_t assertValidIndex(const std::string& containerType, const Variable& index)
+{
+	size_t idx;
+	if (!Variable::indexCheck(index, idx))
+	{
+		runtimeException("specified index into " + containerType + " must be a positive integer in the range [0, 2^" +
+			std::to_string(sizeof(size_t) * 8) + " - 1)");
+	}
+	return idx;
+}
+
+// +-----------------------------+
+// |   Variable implementation   |
+// +-----------------------------+
+
+// hash functor for unordered_map; defines hashing algorithm to be used
+// based on type of 'Variable' object
 size_t Variable::VariableHash::operator()(const Variable& v) const
 {
 	switch (v.type)
@@ -79,6 +131,7 @@ Variable::Variable(const Variable& other) : type(other.type) { setValue(other); 
 
 Variable::~Variable() { freeMem(); }
 
+// helper function for copy constructor/assignment operator to copy value from other Variable
 void Variable::setValue(const Variable& other)
 {
 	switch (other.type)
@@ -101,11 +154,13 @@ void Variable::setValue(const Variable& other)
 	}
 }
 
+// helper function for freeing any allocated memory if needed; used by
+// destructor and on old value for assignment operator
 void Variable::freeMem()
 {
 	if (type == Type::list)
 	{
-		val.listRef.~shared_ptr(); // TODO ensure this does not cause mem leak
+		val.listRef.~shared_ptr();
 	}
 	else if (type == Type::map)
 	{
@@ -133,7 +188,7 @@ std::string Variable::toString() const
 		return s.str();
 	}
 	case Type::boolean:
-		return std::to_string(val.boolVal);
+		return val.boolVal ? "true" : "false";
 	case Type::string:
 		return val.stringVal;
 	case Type::list:
@@ -172,6 +227,12 @@ std::string Variable::toString() const
 		return "null";
 	}
 }
+
+// +------------------------------------------------------------+
+// |   Binary arithmetic operators; all arithmetic operators    |
+// |   except '+' only valid between 2 numbers ('+' also used   |
+// |   for string concatenation                                 |
+// +------------------------------------------------------------+
 
 Variable Variable::operator+(const Variable& other) const
 {
@@ -234,11 +295,21 @@ Variable Variable::operator%(const Variable& other) const
 	runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
 }
 
+// +--------------------------------------------------------------+
+// |   Compound assignment operators; there is no direct          |
+// |   syntax for accomplishing these in Sudoh, but something     |
+// |   like 'a <- a + 1' will be translated to use '+=' for 'a'   |
+// +--------------------------------------------------------------+
+
 void Variable::operator+=(const Variable& other)
 {
 	if (type == Type::number && other.type == Type::number)
 	{
 		val.numVal += other.val.numVal;
+	}
+	else if (type == Type::string && other.type == Type::string)
+	{
+		val.stringVal += other.val.stringVal;
 	}
 	else
 	{
@@ -305,6 +376,12 @@ Variable& Variable::operator=(const Variable& other)
 	return *this;
 }
 
+// +-----------------------------------------------------------+
+// |   Comparison operators; all Sudoh comparison ops except   |
+// |   for '=' and '!=' are only valid between values of the   |
+// |   same type ('='/'!=' valid for null as well              |
+// +-----------------------------------------------------------+
+
 bool Variable::operator==(const Variable& other) const
 {
 	if (type == Type::null || other.type == Type::null)
@@ -312,7 +389,7 @@ bool Variable::operator==(const Variable& other) const
 		return type == other.type;
 	}
 
-	if (other.type != type)
+	if (other.type != type) // TODO maybe make valid between different types; just return false
 	{
 		runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
 	}
@@ -335,7 +412,7 @@ bool Variable::operator==(const Variable& other) const
 
 bool Variable::operator!=(const Variable& other) const
 {
-	return !operator==(other);
+	return !(*this == other);
 }
 
 bool Variable::operator<(const Variable& other) const
@@ -384,7 +461,13 @@ bool Variable::operator>=(const Variable& other) const
 	return !operator<(other);
 }
 
-// will only appear on left-hand side of expression
+// +--------------------------------------------------------+
+// |   Indexing operators valid for string, list, and map   |
+// |   values. Transpiled [] returns a reference and is     |
+// |   used for an index operation on the left side of an   |
+// |   assignment, .at() otherwise                          |
+// +--------------------------------------------------------+
+
 Variable& Variable::operator[](const Variable& index)
 {
 	switch (type)
@@ -394,7 +477,8 @@ Variable& Variable::operator[](const Variable& index)
 	case Type::list:
 	{
 		List& list = *val.listRef;
-		size_t idx = intVal(index.val.numVal);
+
+		size_t idx = assertValidIndex("string", index);
 
 		// expand list if index above length
 		for (size_t i = list.size(); i <= idx; i++)
@@ -411,14 +495,13 @@ Variable& Variable::operator[](const Variable& index)
 	runtimeException("cannot index into type " + typeString());
 }
 
-// non-reference equivalent of [] operator; for accesses rather than modifications
 Variable Variable::at(const Variable& index) const
 {
 	switch (type)
 	{
 	case Type::string:
 	{
-		size_t idx = intVal(index.val.numVal);
+		size_t idx = assertValidIndex("string", index);
 		if (idx >= val.stringVal.length())
 		{
 			runtimeException("specified index '" + std::to_string(idx) + "' out of bounds of string (length " +
@@ -428,8 +511,8 @@ Variable Variable::at(const Variable& index) const
 	}
 	case Type::list:
 	{
-		size_t idx = intVal(index.val.numVal);
-		if (idx >= val.stringVal.length())
+		size_t idx = assertValidIndex("list", index);
+		if (idx >= val.listRef->size())
 		{
 			runtimeException("specified index '" + std::to_string(idx) + "' out of bounds of list (length " +
 				std::to_string(val.listRef->size()) + ")");
@@ -451,6 +534,7 @@ Variable Variable::at(const Variable& index) const
 	runtimeException("cannot index into type " + typeString());
 }
 
+// for converting a boolean variable to type bool for a condition
 Variable::operator bool() const
 {
 	if (type == Type::boolean)

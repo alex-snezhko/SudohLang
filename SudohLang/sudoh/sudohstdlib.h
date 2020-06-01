@@ -14,7 +14,7 @@ Variable f_remove(Variable var, Variable index);
 Variable f_removeLast(Variable list);
 Variable f_append(Variable list, Variable value);
 Variable f_insert(Variable list, Variable index, Variable value);
-Variable f_substring(Variable str, Variable begin, Variable end);
+Variable f_range(Variable str, Variable begin, Variable end);
 Variable f_type(Variable var);
 
 Variable f_pow(Variable num, Variable pow);

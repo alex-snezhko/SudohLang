@@ -3,31 +3,33 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
+#include <memory>
 
-inline bool isInt(double d) // TODO old; replace
-{
-	return abs(round(d) - d) < 0.00000001;
-}
-
-double floatVal(std::string which, std::string procedure, const Variable& var)
-{
-	if (var.type != Type::number)
-	{
-		runtimeException(which + " parameter of procedure '" + procedure + "' must be of type 'number'");
-	}
-	return var.val.numVal;
-}
-
+// asserts that a variable is of the right type and returns its value
 template <typename T>
-T assertType(std::string which, std::string procedure, bool (*condition)(T&))
+T assertTypeGeneric(const std::string& which, const std::string& procedure, const std::string& reqType,
+	const Variable& var, bool (*condition)(const Variable&, T&))
 {
 	T val;
-	if (!condition(val))
+	if (!condition(var, val))
 	{
-		runtimeException(which + " parameter of procedure ");
+		runtimeException("expected parameter '" + which + "' of procedure '" +
+			procedure + "' to be of type '" + reqType + "'");
 	}
 	return val;
-} // TODO
+}
+
+// specialized version of 'assertType' which verifies positive integer
+size_t assertPositiveInteger(const std::string& which, const std::string& procedure, const Variable& var)
+{
+	size_t val;
+	if (!Variable::indexCheck(var, val))
+	{
+		runtimeException("expected parameter '" + which + "' of procedure '" + procedure +
+			"' to be an integer in the range [0, 2^" + std::to_string(sizeof(size_t) * 8) + " - 1)");
+	}
+	return val;
+}
 
 // returns user input as a string
 Variable f_input()
@@ -73,27 +75,15 @@ Variable f_string(Variable var)
 }
 
 // converts a floating point number to an integer
-Variable f_integer(Variable var)
+Variable f_integer(Variable num)
 {
-	if (var.type != Type::number)
-	{
-		runtimeException("parameter of 'integer' must be a number");
-	}
-	if (isInt(var.val.numVal))
-	{
-		return var;
-	}
-	return floor(var.val.numVal);
+	double d = assertTypeGeneric("num", "integer", "number", num, Variable::numCheck);
+	return floor(d);
 }
 
 Variable f_number(Variable str)
 {
-	if (str.type != Type::string)
-	{
-		runtimeException("parameter of 'number' must be a string");
-	}
-
-	const std::string& s = str.val.stringVal;
+	const std::string& s = assertTypeGeneric("str", "number", "string", str, Variable::stringCheck);
 
 	try
 	{
@@ -106,34 +96,21 @@ Variable f_number(Variable str)
 }
 
 // returns the ascii character represented by num
-Variable f_ascii(Variable num)
+Variable f_ascii(Variable code)
 {
-	if (num.type != Type::number || !isInt(num.val.numVal))
-	{
-		runtimeException("parameter of 'ascii' must be an integer");
-	}
+	size_t n = assertPositiveInteger("code", "ascii", code);
 
-	double d = num.val.numVal;
-	if (d < 0.0 || d >= CHAR_MAX)
+	if (n >= CHAR_MAX)
 	{
 		runtimeException("parameter of 'ascii' outside of range of ascii character codes");
 	}
-	return std::string(1, (char)d);
+	return std::string(1, (char)n);
 }
 
 // returns a random integer
 Variable f_random(Variable range)
 {
-	if (range.type != Type::number || !isInt(range.val.numVal))
-	{
-		runtimeException("parameter of 'random' must be an integer");
-	}
-
-	double d = range.val.numVal;
-	if (d < 1.0 || d >= SIZE_MAX)
-	{
-		runtimeException("parameter of 'random' must be an integer in the range [1, " + std::to_string(SIZE_MAX) + ")");
-	}
+	size_t n = assertPositiveInteger("range", "random", range);
 
 	static bool seedSet = false;
 	if (!seedSet)
@@ -141,33 +118,29 @@ Variable f_random(Variable range)
 		srand(time(nullptr));
 		seedSet = true;
 	}
-	return (double)(rand() % (size_t)d);
+	return (double)(rand() % n);
 }
 
 // removes an element from a list or map
-Variable f_remove(Variable var, Variable index)
+Variable f_remove(Variable var, Variable element)
 {
 	if (var.type == Type::list)
 	{
 		Variable::List& l = *var.val.listRef;
-		if (index.type != Type::number || !isInt(index.val.numVal))
+
+		size_t n = assertPositiveInteger("element", "remove", element);
+		if (n >= l.size())
 		{
-			runtimeException("second parameter of 'remove' on container of type 'list' must be an integer number");
+			runtimeException("parameter 'index' of 'remove' is out of bounds of list");
 		}
 
-		double d = index.val.numVal;
-		if (d < 0.0 || d >= l.size())
-		{
-			runtimeException("second parameter of 'remove' is out of bounds of list");
-		}
-
-		l.erase(l.begin() + (size_t)d);
+		l.erase(l.begin() + n);
 		return Variable();
 	}
-	if (var.type == Type::map)
+	else if (var.type == Type::map)
 	{
 		Variable::Map& m = *var.val.mapRef;
-		auto e = m.find(index);
+		auto e = m.find(element);
 		if (e == m.end())
 		{
 			runtimeException("element attempted to be removed from map does not exist in the map");
@@ -183,83 +156,71 @@ Variable f_remove(Variable var, Variable index)
 // removes the last element from a list
 Variable f_removeLast(Variable list)
 {
-	if (list.type != Type::list)
-	{
-		runtimeException("first parameter of 'remove' must be a list");
-	}
-
-	list.val.listRef->pop_back();
+	Variable::List& l = *assertTypeGeneric("list", "removeLast", "list", list, Variable::listCheck);
+	l.pop_back();
 	return Variable();
 }
 
 // appends a new element to a list
 Variable f_append(Variable list, Variable value)
 {
-	if (list.type != Type::list)
-	{
-		runtimeException("first parameter of 'append' must be a list");
-	}
-
-	list.val.listRef->push_back(value);
+	Variable::List& l = *assertTypeGeneric("list", "append", "list", list, Variable::listCheck);
+	l.push_back(value);
 	return Variable();
 }
 
 // inserts an element into a list at specified index
 Variable f_insert(Variable list, Variable index, Variable value)
 {
-	if (list.type != Type::list)
+	Variable::List& l = *assertTypeGeneric("list", "insert", "list", list, Variable::listCheck);
+	size_t n = assertPositiveInteger("index", "insert", index);
+
+	if (n >= l.size())
 	{
-		runtimeException("first parameter of 'insert' must be a list");
+		runtimeException("parameter 'index' of 'insert' is out of bounds of list");
 	}
 
-	if (index.type != Type::number || isInt(index.val.numVal))
-	{
-		runtimeException("second parameter of 'insert' must be an integer number");
-	}
-
-	Variable::List& l = *list.val.listRef;
-	double d = index.val.numVal;
-
-	if (d < 0.0 || d >= l.size())
-	{
-		runtimeException("second parameter of 'insert' is out of bounds of list");
-	}
-
-	l.insert(l.begin() + (size_t)d, value);
+	l.insert(l.begin() + n, value);
 	return Variable();
 }
 
-Variable f_substring(Variable str, Variable begin, Variable end)
+Variable f_range(Variable indexable, Variable begin, Variable end)
 {
-	if (str.type != Type::string)
+	size_t b = assertPositiveInteger("begin", "substring", begin);
+	size_t e = assertPositiveInteger("end", "substring", end);
+
+	if (indexable.type == Type::string)
 	{
-		runtimeException("first parameter of 'substring' must be a string");
+		const std::string& s = indexable.val.stringVal;
+
+		if (b >= s.length())
+		{
+			runtimeException("parameter 'begin' of 'range' outside of string bounds");
+		}
+		if (e >= s.length())
+		{
+			runtimeException("parameter 'end' of 'range' outside of string bounds");
+		}
+
+		return std::string(s.begin() + b, s.end() + e);
+	}
+	else if (indexable.type == Type::list)
+	{
+		const Variable::List& l = *indexable.val.listRef;
+
+		if (b >= l.size())
+		{
+			runtimeException("parameter 'begin' of 'range' outside of list bounds");
+		}
+		if (e >= l.size())
+		{
+			runtimeException("parameter 'end' of 'range' outside of list bounds");
+		}
+
+		return std::make_shared<Variable::List>(Variable::List(l.begin() + b, l.begin() + e));
 	}
 
-	if (begin.type != Type::number || !isInt(begin.val.numVal))
-	{
-		runtimeException("second parameter of 'substring' must be an integer");
-	}
-	const std::string& s = str.val.stringVal;
-	double d1 = begin.val.numVal;
-	if (d1 < 0.0 || d1 >= s.length())
-	{
-		runtimeException("second parameter of 'substring' outside of string bounds");
-	}
-	size_t b = (size_t)d1;
-
-	if (end.type != Type::number || !isInt(end.val.numVal))
-	{
-		runtimeException("third parameter of 'substring' must be an integer");
-	}
-	double d2 = end.val.numVal;
-	if (d2 < 0.0 || d2 >= s.length())
-	{
-		runtimeException("third parameter of 'substring' outside of string bounds");
-	}
-	size_t e = (size_t)d2;
-
-	return s.substr(b, e - b);
+	runtimeException("cannot take range of type " + indexable.typeString());
 }
 
 Variable f_type(Variable var)
@@ -269,45 +230,57 @@ Variable f_type(Variable var)
 
 Variable f_pow(Variable num, Variable power)
 {
-	return pow(floatVal("first", "pow", num), floatVal("second", "pow", power));
+	double n = assertTypeGeneric("num", "pow", "number", num, Variable::numCheck);
+	double p = assertTypeGeneric("power", "pow", "number", num, Variable::numCheck);
+	return pow(n, p);
 }
 
-Variable f_cos(Variable num)
+Variable f_cos(Variable angle)
 {
-	return cos(floatVal("first", "cos", num));
+	double n = assertTypeGeneric("angle", "cos", "number", angle, Variable::numCheck);
+	return cos(n);
 }
 
-Variable f_sin(Variable num)
+Variable f_sin(Variable angle)
 {
-	return sin(floatVal("first", "sin", num));
+	double n = assertTypeGeneric("angle", "sin", "number", angle, Variable::numCheck);
+	return sin(n);
 }
 
-Variable f_tan(Variable num)
+Variable f_tan(Variable angle)
 {
-	return tan(floatVal("first", "tan", num));
+	double n = assertTypeGeneric("angle", "tan", "number", angle, Variable::numCheck);
+	return tan(n);
 }
 
-Variable f_acos(Variable num)
+Variable f_acos(Variable val)
 {
-	return acos(floatVal("first", "acos", num));
+	double n = assertTypeGeneric("angle", "acos", "number", val, Variable::numCheck);
+	return acos(n);
 }
 
-Variable f_asin(Variable num)
+Variable f_asin(Variable val)
 {
-	return asin(floatVal("first", "asin", num));
+	double n = assertTypeGeneric("val", "asin", "number", val, Variable::numCheck);
+	return asin(n);
 }
 
-Variable f_atan(Variable num)
+Variable f_atan(Variable val)
 {
-	return atan(floatVal("first", "atan", num));
+	double n = assertTypeGeneric("val", "atan", "number", val, Variable::numCheck);
+	return atan(n);
 }
 
-Variable f_atan2(Variable num1, Variable num2)
+Variable f_atan2(Variable y, Variable x)
 {
-	return atan2(floatVal("first", "atan2", num1), floatVal("second", "atan2", num2));
+	double ny = assertTypeGeneric("y", "atan2", "number", y, Variable::numCheck);
+	double nx = assertTypeGeneric("x", "atan2", "number", x, Variable::numCheck);
+	return atan2(ny, nx);
 }
 
 Variable f_log(Variable num, Variable base)
 {
-	return log(floatVal("first", "log", num)) / log(floatVal("second", "log", base));
+	double n = assertTypeGeneric("num", "log", "number", num, Variable::numCheck);
+	double b = assertTypeGeneric("base", "log", "number", base, Variable::numCheck);
+	return log(n) / log(b);
 }

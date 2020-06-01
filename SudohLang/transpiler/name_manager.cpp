@@ -17,8 +17,8 @@ bool NameManager::SudohProcedure::operator<(const NameManager::SudohProcedure& o
 bool NameManager::validName(const std::string& name)
 {
 	static const std::set<std::string> KEYWORDS = {
-		"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while", "until",
-		"for", "each", "output", "exit", "break", "continue", "mod", "procedure", "and", "or", "including" // TODO complete set
+		"if", "then", "else", "do", "not", "true", "false", "null", "repeat", "while", "until", "for",
+		"each", "in", "output", "exit", "break", "continue", "mod", "procedure", "and", "or", "including"
 	};
 
 	return std::regex_match(name, NAME_RE) && KEYWORDS.count(name) == 0;
@@ -88,12 +88,12 @@ void NameManager::checkProcCallsValid()
 		if (matching == proceduresDefined.end())
 		{
 			throw SyntaxException("attempted use of undeclared procedure '" + e.proc.name + "' accepting " +
-				std::to_string(e.proc.numParams) + " parameter(s)");
+				std::to_string(e.proc.numParams) + " parameter(s)", e.tokenNum);
 		}
 		if (matching->numParams != e.proc.numParams)
 		{
 			throw SyntaxException("expected " + std::to_string(matching->numParams) + " parameter(s) for procedure '" +
-				matching->name + "' but got " + std::to_string(e.proc.numParams));
+				matching->name + "' but got " + std::to_string(e.proc.numParams), e.tokenNum);
 		}
 	}
 }

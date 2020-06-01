@@ -125,6 +125,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="sudoh\example.cpp" />
     <ClCompile Include="sudoh\runtime_ex.cpp" />
     <ClCompile Include="transpiler\name_manager.cpp" />
     <ClCompile Include="sudoh\sudohstdlib.cpp" />

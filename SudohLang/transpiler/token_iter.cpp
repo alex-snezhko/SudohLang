@@ -34,11 +34,11 @@ void TokenIterator::tokenize(const std::string& contents)
 		// if token at index was not delimiter then skip
 		if (!delim)
 		{
-			if (!isalnum(contents[i]) && contents[i] != '_')
+			char c = contents[i];
+			if (!isalnum(c) && c != '_' && c != '.')
 			{
 				tokens.push_back({ lineNum, i, std::string(1, contents[i]) });
-				tokenNum = tokens.size() - 1;
-				throw SyntaxException("invalid character");
+				throw SyntaxException("invalid character", tokens.size() - 1);
 			}
 			beginLine = false;
 			continue;
@@ -70,8 +70,7 @@ void TokenIterator::tokenize(const std::string& contents)
 				if (close == contents.length())
 				{
 					tokens.push_back({ lineNum, i, std::string(1, contents[i]) });
-					tokenNum = tokens.size() - 1;
-					throw SyntaxException("malformed string");
+					throw SyntaxException("malformed string", tokens.size() - 1);
 				}
 
 				tokens.push_back({ lineNum, i, contents.substr(i, close - i + 1) });

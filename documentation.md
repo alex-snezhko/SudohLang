@@ -9,11 +9,13 @@ programming language should make getting started with Sudoh an easy task.
 ## Basic information
 Sudoh is a strongly-typed, dynamically type-checked language. There are 6 types in Sudoh, and they are:
 - Number
-- Boolean
 - String
+- Boolean
 - List
 - Map
 - Null
+
+### Statements
 
 Each statement in Sudoh must be on a new line, and a valid line is either: a variable assignment, a procedure call, or a
 programming structure declaration statement. Here is a code segment illustrating basic variable assignment.
@@ -28,6 +30,65 @@ a <- 123         // this is an assignment of the value '123' into a new variable
 a <- "hello"     // we are now reassigning 'a' to contain the string value "hello"
 ```
 
+It is possible for a single statement/expression to be split into multiple lines, for the primary reason of avoiding
+extremely long lines in complex conditions, arithmetic expressions, etc. However, there are some rules associated with this.
+Firstly, a statement may only be split into multiple lines immediately after a binary operator e.g. `+` or `and`, after a comma,
+or after the beginning brace/before the ending brace of a 'list'/'map' literal. On top of that, all lines of a multiline statement
+following the first must be indented at least one level higher than the first line.
+
+These are some statements containing valid multiline expressions:
+```
+longArithmetic <- (1 + 2 - 3) * (4345 / 18 + 871) -
+    456 + ((123 - 44) + 12345)
+
+if (condition1 and condition2 and condition3) or
+    (condition4 and condition5 and condition6) then
+    print("conditions met")
+
+largeList <- [
+    "string 1",
+    "string 2",
+    "string 3",
+    "string 4",
+    "string 5"
+    ]
+
+largeMap <- {
+    "value1" <- 42,
+    "value2" <- null,
+    8000 <- 8001,
+    "hello" <- "world"
+    }
+```
+
+These are some statements containing invalid multiline expressions:
+```
+longArithmetic <- (1 + 2 - 3) * (4345 / 18 + 871) -
+456 + ((123 - 44) + 12345)
+
+if (condition1 and condition2 and condition3) or
+(condition4 and condition5 and condition6) then
+    print("conditions met")
+
+largeList <- [
+    "string 1",
+"string 2",
+    "string 3",
+"string 4",
+    "string 5"
+    ]
+
+largeMap <-      // cannot end line after '<-'
+{
+    "value1" <- 42,
+    "value2" <- null,
+    8000 <- 8001,
+    "hello" <- "world"
+}
+```
+
+### Type checking
+
 Some operations in Sudoh are only valid if performed on values of particular types. As the type of a variable
 may change throughout the execution of a program, it is important that the programmer keeps track of variable types
 and ensures that the operations performed on data are valid.
@@ -37,6 +98,42 @@ result <- var * 2    // valid operation; result = 246
 
 var <- "hello"       // reassign 'var' to contain a string value
 result <- var * 2    // same operation as before, but it is no longer valid as multiplication may only be performed on numbers
+```
+
+The type of a value/variable can be checked at runtime with the `type` procedure, which may be useful in verifying
+the integrity of operations before performing them, or for other uses
+```
+rightOperand <- // some value
+
+// perform arithmetic if 'rightOperand' is number, error message otherwise
+if type(rightOperand) != "number" then
+    printLine("right should be number")
+else
+    printLine(2 * rightOperand)
+
+list <- ["a", 2, "b", null, "c"]
+stringList <- []
+for each e in list do
+    if type(e) = "string" then
+        append(stringList, e)
+
+// stringList = ["a", "b", "c"]
+```
+
+### Values/References
+Sudoh's number, string, and boolean types are value types which use value semantics, while the others are reference types which
+use reference semantics. If a variable (`a`, for example) is set to a reference type and that reference type is
+modified at another point in the program e.g. a list has an element added to it, that change will be seen by `a`
+```
+str1 <- "a"    // strings are value types
+str2 <- str1
+str2 <- str2 + "b"
+// at this point 'str1' = "a" and 'str2' = "ab"
+
+a <- [1, 2]    // lists are reference types
+b <- a
+b[2] <- 3
+// at this point both 'a' and 'b' refer to a list '[1, 2, 3]'
 ```
 
 ### Scope
@@ -93,17 +190,7 @@ parentheses -> multiplication/division -> addition/subtraction.
 ```
 a <- 1 + (2 * 3) - 4   // a = 3
 m <- 5 mod 2           // m = 1
-```
-
-### Boolean
-The boolean type is used primarily for program logic flow purposes, such as in `if` or `while`/`until` conditions. A boolean may
-possess values of either `true` or `false`. Compound conditions may be formed with the `and`/`or` operators and may be inverted
-with `not`.
-```
-true and false       // false
-true or false        // true
-not false            // true
-not false and false  // false
+p <- -1.5 * -2         // p = 3
 ```
 
 ### String
@@ -124,6 +211,30 @@ helloWorld[1] <- "a"           // illegal; Sudoh strings are immutable
 withNum <- "asdf" + 1 + true   // legal; concatenations between strings and other types are valid
                                // withNum = "asdf1true"
 ```
+
+### Boolean
+The boolean type is used primarily for program logic flow purposes, such as in `if` or `while`/`until` conditions. A boolean may
+possess values of either `true` or `false`. Compound conditions may be formed with the `and`/`or` operators and may be inverted
+with `not`.
+```
+true and false       // false
+true or false        // true
+not false            // true
+not false and false  // false
+```
+
+#### Comparisons
+Variables/values in Sudoh may be compared to other variables/values. The result of such a comparison is a boolean value indicating
+whether the comparison was accurate. There are 6 comparison operators in Sudoh. They are:
+-   `=` (is equal to); reference comparison on reference types, value comparsion between value types;
+    valid between variables of the same type, or between a variable and `null`
+-   `!=` (is not equal to); similar usage to `=`; outputs opposite result of what `=` would
+-   `<` (is less than); if performed between two numbers, returns whether left number is less than right;
+    if performed between two strings, scans strings character-by-character and outputs `true` if ASCII value(`<left>[n]`) <
+    ASCII value(`<right>[n]`)
+-   `<=` (is less than or equal to); similar in usage to `<`, but also outputs `true` if the values being compared are equal
+-   `>` (is greater than); outputs opposite result of `<=`
+-   `>=` (is greater than or equal to); outputs opposite result of `<`
 
 ### List
 Lists in Sudoh are variable-length collections of elements. Variables of varying types may be placed into the same list.
@@ -162,8 +273,8 @@ append(list, "hi")  // list = [9, 2, 3, 4, 5, 6, 7, "hi"]
 
 ### Map
 Maps in Sudoh are data structures which contain key-value element pairs. Looking up a key in a map will return the key's associated
-value. Values may be accessed or inserted into a map using bracket notation, and removed with the `remove` function. The number of
-elements in a map may be found using the `length` function
+value. Values may be accessed or inserted into a map using bracket notation, and removed with the `remove` function. A map may not
+contain a key of `null`. The number of elements in a map may be found using the `length` function
 ```
 empty <- {}            // declare an empty map
 length(empty)          // 0
@@ -194,19 +305,6 @@ else if inp > 4 then
 
 // most operations performed on 'num' will be invalid if the input number was in the range [3, 4]
 ```
-
-### Comparisons
-There are 6 comparison operators in Sudoh. They are:
-- `=` (is equal to); valid between variables of the same type, or between a variable and `null`
-- `!=` (is not equal to); valid between variables of the same type, or between a variable and `null`
-- `<` (is less than); valid between two numbers
-- `<=` (is less than or equal to); valid between two numbers
-- `>` (is greater than); valid between two numbers
-- `>=` (is greater than or equal to); valid between two numbers
-
-### Arithmetic operations
-There are 5 binary operators in Sudoh. They are:
-- `+` ()
 
 
 ## Programming structures
@@ -340,6 +438,7 @@ while true do
 
 
 ## Procedures
+
 Units of code may be broken up into 'procedures' for organization, understandability, and/or reusability. A procedure
 is a segment of code that may be executed ('called') elsewhere in a program to run the code contained within the procedure; a
 procedure that is never called will not do anything
@@ -380,15 +479,15 @@ procedure noOutput
 val <- noOutput()   // val = null
 ```
 
-A non-outputting procedure may also be terminated before reaching the end of the procedure with the `return` keyword.
-If a procedure reaches the `return` keyword, it will implicitly output the value `null` as in a typical non-outputting
+A non-outputting procedure may also be terminated before reaching the end of the procedure with the `exit` keyword.
+If a procedure reaches the `exit` keyword, it will implicitly output the value `null` as in a typical non-outputting
 procedure.
 
 ```
 procedure printSomething <- num
     if num < 5 then
         printLine("< 5")
-        return
+        exit
     printLine(">= 5")
 
 printSomething(4)      // only '< 5' will be printed
@@ -396,8 +495,7 @@ printSomething(6)      // only '>= 5' will be printed
 ```
 
 
-
-### Procedure caveats
+### Extra procedure info
 -   Procedures may **not** access 'global' variables, as is possible in some other programming languages.
     ```
     globalVar <- "hello"
@@ -440,12 +538,29 @@ printSomething(6)      // only '>= 5' will be printed
     proc("as", "df")
     ```
 
+-   Parameters are passed into procedures by *object reference*.
+    ```
+    procedure modifyParams <- num, list1, list2
+        num <- 123
+        list1 <- ["new", "list"]
+        append(list2, 3)
+
+    num <- 5
+    list1 <- ["some", "stuff"]
+    list2 <- [0, 1, 2]
+    modifyParams(num, list1, list2)
+    
+    // num = 5
+    // list1 = ["some", "stuff"]
+    // list2 = [0, 1, 2, 3]
+    ```
+
 
 ## Sudoh standard library
 Sudoh contains several built-in standard library procedures which either provide functionality that cannot be
 performed natively with Sudoh, or convenience for performing common operations.
 
-### `print` and `printLine`
+### `print` and `printLine` input: `var`
 `print` is a procedure which will print the value of a variable to console output. The variable passed in is
 implicitly converted to a string (see 'string' procedure) and then printed. `printLine` is identical in behavior
 to `print`, with the exception that a newline character will be printed afterwards as well.
@@ -466,7 +581,7 @@ in <- input()         // user types in 'hello'; the value of 'in' is now "hello"
 printLine("input: " + in)        // 'input: hello' will be printed
 ```
 
-### `length` input: collection; output: integer
+### `length` input: `collection`; output: integer
 `length` is a procedure which outputs the number of elements in a collection. For a string, `length` will
 return the number of characters in the string. For a list, `length` will return the number of elements in the
 list. For a map, `length` will return the number of key-value pairs in the map.
@@ -483,7 +598,7 @@ length(map)        // 2
 length(2)          // invalid; parameter must be a collection
 ```
 
-### `string` input: variable; output: string
+### `string` input: `var`; output: string
 `string` is a procedure which outputs a string representation of the input variable.
 ```
 string(123)                     // "123"
@@ -494,7 +609,7 @@ string({"a" <- 1, "b" <- 2})    // "{ a <- 1, b <- 2 }"
 string(null)                    // "null"
 ```
 
-### `number` input: string; output: number
+### `number` input: `str`; output: number
 `number` is a procedure which parses a string containing a numerical value into a number. If the specified
 string does not contain a number value, the procedure will output `null`
 ```
@@ -505,16 +620,20 @@ c <- a + b                 // c = 127.5
 invalid <- number("asdf")  // invalid = null
 ```
 
-### `substring` input: (string, begin, end); output: string
-`substring` is a procedure which outputs a portion of the specified string, beginning at index `begin` and ending
-before index `end`
+### `range` input: `indexable`, `begin`, `end`; output: (string|list)
+`range` is a procedure which outputs a portion of the specified string or list, beginning at index `begin`
+and ending before index `end`
 ```
-str <- "Apple Banana"
-apple <- substring(str, 0, 5)              // apple = "Apple"
-banana <- substring(str, 6, length(str))   // banana = "Banana"
+str <- "abcdef"
+first <- range(str, 0, 3)      // first = "abc"
+second <- range(str, 3, 6)     // second = "def"
+
+list <- [5, 4, 3, 2, 1]
+part <- range(list, 1, 4)      // part = [4, 3, 2]
+range(list, 0, 6)              // invalid; 'end' index greater than length of 'list'
 ```
 
-### `integer` input: number; output: integer
+### `integer` input: `num`; output: integer
 `integer` is a procedure which outputs a truncated integer value of an input number.
 ```
 integer(3.14)      // 3
@@ -522,7 +641,7 @@ integer(3)         // 3
 integer("3.14")    // invalid; input must be a number
 ```
 
-### `ascii` input: integer; output: string
+### `ascii` input: `code`; output: string
 `ascii` is a procedure which outputs the ASCII character representation of the input ASCII code as a string.
 ```
 ascii(65)     // "A"
@@ -530,14 +649,14 @@ ascii(122)    // "z"
 ascii(33)     // "!"
 ```
 
-### `random` input: integer range; output: integer
+### `random` input: `range`; output: integer
 `random` is a procedure which outputs a random integer in the range of [0, `range`).
 ```
 random(3)    // will return either 0, 1, 2
 random(100)  // will return random number on interval [0, 100)
 ```
 
-### `append` input: (list, element)
+### `append` input: `list`, `element`
 `append` is a procedure which adds a new element to the end of a list.
 ```
 list <- [1, 2]
@@ -545,7 +664,7 @@ append(list, 3)    // list = [1, 2, 3]
 append(list, 4)    // list = [1, 2, 3, 4]
 ```
 
-### `insert` input: (list, index, element)
+### `insert` input: `list`, `index`, `element`
 `insert` is a procedure which inserts an element into a list at a given index.
 ```
 list <- ["a", "c"]
@@ -553,7 +672,7 @@ insert(list, 1, "b")       // list = ["a", "b", "c"]
 insert(list, 0, "!")       // list = ["!", "a", "b", "c"]
 ```
 
-### `remove` input: (list|map, element)
+### `remove` input: `container`, `element`
 `remove` is a procedure which removes an element from a list or map. If the first parameter passed in is a list,
 then the second must be an integer index at which to remove the element from. If the first parameter is a map,
 then the second must be the key of a key-value pair to remove.
@@ -568,7 +687,7 @@ remove(map, "a")      // map = { "b" <- 2 }
 remove(map, "c")      // invalid; there is no key "c" in the map
 ```
 
-### `removeLast` input: list
+### `removeLast` input: `list`
 `removeLast` is a procedure which removes the last element from a list.
 ```
 list <- [1, 2, 3]
@@ -576,7 +695,7 @@ removeLast(list)      // list = [1, 2]
 removeLast(list)      // list = [1]
 ```
 
-### `type` input: variable; output: string
+### `type` input: `var`; output: string
 `type` is a procedure which outputs a string representation of the input variable's type
 ```
 type(123)    // "number"
@@ -586,7 +705,7 @@ type([])     // "list"
 type({})     // "map"
 ```
 
-### `pow` input: (number, power)
+### `pow` input: `num`, `power`
 `pow` is a procedure which outputs a number equal to the input `number` raised to the input `power`
 ```
 pow(3, 2)          // 9
@@ -594,7 +713,7 @@ pow(1, 100)        // 1
 pow(1.5, 1.5)      // ~ 1.8371
 ```
 
-### `log` input: (number, base)
+### `log` input: `num`, `base`
 `log` is a procedure which outputs a number equal to the logarithm of `number` with the specified `base`
 ```
 log(4, 2)          // 2
@@ -602,13 +721,13 @@ log(1000, 10)      // 3
 log(27, 3)         // 3
 ```
 
-### `cos`/`sin`/`tan` input: number
+### `cos`/`sin`/`tan` input: `angle`
 These are procedures which respectively output the cosine/sine/tangent of the specified angle (in radians)
 
-### `acos`/`asin`/`atan` input: number
+### `acos`/`asin`/`atan` input: `val`
 These are procedures which respectively output the inverse cosine/sine/tangent (in radians) of the specified value
 
-### `atan2` input: (y, x)
+### `atan2` input: `y`, `x`
 `atan2` is a procedure which outputs the unambiguous inverse tangent (in radians) of the specified values
 (first parameter: y value, second: x value)
 
@@ -627,63 +746,21 @@ including import1, hello
 including import2   // illegal; all imports must be on the first relevant line of a file
 ```
 
-
-## Miscellaneous information
-
-### Multiline expressions
-It is possible for a single statement/expression to be split into multiple lines, for the primary reason of avoiding
-extremely long lines in complex conditions, arithmetic expressions, etc. However, there are some rules associated with this.
-Firstly, a statement may only be split into multiple lines immediately after a binary operator e.g. `+` or `and`, after a comma,
-or after the beginning brace/before the ending brace of a 'list'/'map' literal. On top of that, all lines of a multiline statement
-following the first must be indented at least one level higher than the first line.
-
-These are some statements containing valid multiline expressions:
+The following is an example of a multifile program
 ```
-longArithmetic <- (1 + 2 - 3) * (4345 / 18 + 871) -
-    456 + ((123 - 44) + 12345)
+// file: "importFile.sud"
 
-if (condition1 and condition2 and condition3) or
-    (condition4 and condition5 and condition6) then
-    print("conditions met")
+procedure doStuff
+    print("entered doStuff")
 
-largeList <- [
-    "string 1",
-    "string 2",
-    "string 3",
-    "string 4",
-    "string 5"
-    ]
-
-largeMap <- {
-    "value1" <- 42,
-    "value2" <- null,
-    8000 <- 8001,
-    "hello" <- "world"
-    }
+procedure squared <- num
+    output num * num
 ```
-
-These are some statements containing invalid multiline expressions:
 ```
-longArithmetic <- (1 + 2 - 3) * (4345 / 18 + 871) -
-456 + ((123 - 44) + 12345)
+// file: "program.sud"
 
-if (condition1 and condition2 and condition3) or
-(condition4 and condition5 and condition6) then
-    print("conditions met")
+including importFile   // 'doStuff' and 'squared' now available
 
-largeList <- [
-    "string 1",
-"string 2",
-    "string 3",
-"string 4",
-    "string 5"
-    ]
-
-largeMap <-      // cannot end line after '<-'
-{
-    "value1" <- 42,
-    "value2" <- null,
-    8000 <- 8001,
-    "hello" <- "world"
-}
+doStuff()              // 'entered doStuff' will be printed
+print(squared(4))      // '16' will be printed
 ```

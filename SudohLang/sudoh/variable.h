@@ -3,9 +3,13 @@
 #include <unordered_map>
 #include <memory>
 
+// enum that is used to keep track of the type of a variable
 enum class Type { number, boolean, string, list, map, null, charRef };
 
+// Boolean pseudo-type that is used to avoid ambiguity for Variable constructor;
+// for example, so that 'Variable(0)' is not ambiguated between using bool or double constructor
 enum class Bool { t, f };
+
 class Variable
 {
 	struct VariableHash
@@ -20,18 +24,8 @@ public:
 private:
 	// standard library functions which have access to Variable members
 	friend Variable f_length(Variable var);
-	friend Variable f_number(Variable str);
-	friend Variable f_integer(Variable var);
-	friend Variable f_ascii(Variable num);
-	friend Variable f_random(Variable range);
 	friend Variable f_remove(Variable list, Variable index);
-	friend Variable f_append(Variable list, Variable value);
-	friend Variable f_insert(Variable list, Variable index, Variable value);
-	friend Variable f_removeLast(Variable list);
-	friend Variable f_substring(Variable str, Variable begin, Variable end);
-	friend double floatVal(std::string which, std::string procedure, const Variable& var);
-
-	friend class VariableHash;
+	friend Variable f_range(Variable indexable, Variable begin, Variable end);
 
 	Type type;
 	union Val
@@ -41,8 +35,6 @@ private:
 		std::string stringVal;
 		std::shared_ptr<List> listRef;
 		std::shared_ptr<Map> mapRef;
-		//Ref<List>* listRef; // TODO debug that ref count checking works properly
-		//Ref<Map>* mapRef;
 
 		Val();
 		Val(double val);
@@ -57,6 +49,12 @@ private:
 	void setValue(const Variable& other);
 
 public:
+
+	static bool stringCheck(const Variable& var, std::string& out);
+	static bool indexCheck(const Variable& var, size_t& out);
+	static bool numCheck(const Variable& var, double& out);
+	static bool listCheck(const Variable& var, List*& out);
+
 	Variable();
 	Variable(double n);
 	Variable(Bool b);

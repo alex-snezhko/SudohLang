@@ -67,7 +67,7 @@ void Parser::maybeMultiline()
 
 // main function which allows parsing of a Sudoh source file. reads, tokenizes, and begins
 // the parse/transpilation of the source file
-void Parser::parse(const std::string fileName, bool main)
+void Parser::parse(const std::string& fileName, bool main)
 {
 	std::ifstream file;
 	file.open(fileName + ".sud");
@@ -118,9 +118,11 @@ void Parser::parse(const std::string fileName, bool main)
 		// ensure validity of all procedure calls attempted
 		names.checkProcCallsValid();
 	}
-	catch (SyntaxException& e) // will catch a syntax error and print the error
+	catch (const SyntaxException& ex) // will catch a syntax error and print the error
 	{
-		size_t fileCharNum = tokens.getTokens()[tokens.getTokenNum()].fileCharNum;
+		size_t tokenNum = ex.isThisToken() ? tokens.getTokenNum() : ex.getTokenNum();
+
+		size_t fileCharNum = tokens.getTokens()[tokenNum].fileCharNum;
 
 		// get the entire line that the current token is on
 		size_t beginLine = fileCharNum, endLine = beginLine;
@@ -135,8 +137,8 @@ void Parser::parse(const std::string fileName, bool main)
 		std::string line = contents.substr(beginLine, endLine - beginLine);
 
 		// print the error message and indicate parse failure
-		std::cout << "Syntax error on line " << tokens.getTokens()[tokens.getTokenNum()].lineNum <<
-			" of file '" + fileName + ".sud': " << e.what() << "\n\t" << line << "\n\t";
+		std::cout << "Syntax error on line " << tokens.getTokens()[tokenNum].lineNum <<
+			" of file '" + fileName + ".sud': " << ex.what() << "\n\t" << line << "\n\t";
 		for (int i = 0; i < fileCharNum - beginLine; i++)
 		{
 			std::cout << " ";
@@ -149,7 +151,7 @@ void Parser::parse(const std::string fileName, bool main)
 	std::string transpiledHeader = "#include \"sudoh.h\"\n\n";
 	for (auto& e : names.getProceduresDefined())
 	{
-		transpiledHeader += "var f_" + e.name + "(";
+		transpiledHeader += "var p_" + e.name + "(";
 		for (int i = 0; i < e.numParams; i++)
 		{
 			transpiledHeader += std::string("var") + (i < e.numParams - 1 ? ", " : "");
@@ -357,7 +359,7 @@ bool Parser::parseProcCall()
 		//       ^
 		if (tokens.currToken() == "(")
 		{
-			appendAndAdvance("f_" + procName + "(");
+			appendAndAdvance("p_" + procName + "(");
 
 			// [name]({params})
 			//         ^
@@ -432,28 +434,27 @@ bool Parser::parseVarName(VarParseMode mode)
 		case VarParseMode::mayBeNew:
 			if (names.varExists(name, inProcedure))
 			{
-				appendAndAdvance("_" + name);
+				appendAndAdvance("v_" + name);
 				break;
 			}
 			names.addVar(name);
-			appendAndAdvance("var _" + name);
+			appendAndAdvance("var v_" + name);
 			break;
 		case VarParseMode::mustExist:
 			if (names.varExists(name, inProcedure))
 			{
-				appendAndAdvance("_" + name);
+				appendAndAdvance("v_" + name);
 				break;
 			}
 			throw SyntaxException("use of undeclared variable " + name);
-
 		case VarParseMode::forVar:
 			if (names.varExists(name, inProcedure))
 			{
-				appendAndAdvance("_" + name);
+				appendAndAdvance("v_" + name);
 				break;
 			}
 			names.addVarToNextScope(name);
-			appendAndAdvance("var _" + name);
+			appendAndAdvance("var v_" + name);
 			break;
 		case VarParseMode::forEachVar:
 			if (names.varExists(name, inProcedure))
@@ -461,11 +462,11 @@ bool Parser::parseVarName(VarParseMode mode)
 				throw SyntaxException("'for each' iteration variable must be a new variable");
 			}
 			names.addVarToNextScope(name);
-			appendAndAdvance("var _" + name);
+			appendAndAdvance("var v_" + name);
 			break;
 		case VarParseMode::procedureParam:
 			names.addVarToNextScope(name);
-			appendAndAdvance("var _" + name);
+			appendAndAdvance("var v_" + name);
 			break;
 		}
 
@@ -513,9 +514,8 @@ void Parser::checkBinary(const std::string translatedBinOp, ParsedType& leftType
 		}
 	}
 
-	tokens.setTokenNum(initTokenNum);
 	throw SyntaxException("binary operator '" + sudohBinOp + "' cannot be applied to types '" +
-		typeToString(leftType) + "' and '" + typeToString(rightType) + "'");
+		typeToString(leftType) + "' and '" + typeToString(rightType) + "'", initTokenNum);
 }
 
 void Parser::parseArithmetic(ParsedType& type)
@@ -612,15 +612,14 @@ void Parser::parseExpr(const std::vector<ParsedType> allowed)
 		}
 		msg += ")";
 
-		tokens.setTokenNum(initTokenNum);
-		throw SyntaxException(msg);
+		throw SyntaxException(msg, initTokenNum);
 	}
 }
 
 // parse a single term in an expression
 void Parser::parseTerm(ParsedType& t)
 {
-	static const std::regex NUMBER_RE = std::regex("-?[0-9]+(\.[0-9]+)?");
+	static const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
 	static const std::regex STRING_RE = std::regex("\".*\"");
 
 	const std::string& token = tokens.currToken();
@@ -638,14 +637,11 @@ void Parser::parseTerm(ParsedType& t)
 	{
 		appendAndAdvance("(");
 		parseExpr(t);
-		if (tokens.currToken() == ")")
-		{
-			appendAndAdvance(")");
-		}
-		else
+		if (tokens.currToken() != ")")
 		{
 			throw SyntaxException("expected closing parenthesis");
 		}
+		appendAndAdvance(")");
 	}
 	// +---------------------------------------------------------------+
 	// |   Not a compound term at this point; check for normal value   |
@@ -655,6 +651,16 @@ void Parser::parseTerm(ParsedType& t)
 		// 'True' and 'False' will be macros
 		appendAndAdvance(token == "true" ? "True" : "False");
 		t = ParsedType::boolean;
+	}
+	else if (token == "-")
+	{
+		tokens.advance();
+		if (!std::regex_match(tokens.currToken(), NUMBER_RE))
+		{
+			throw SyntaxException("expected a number after term beginning with '-'");
+		}
+		appendAndAdvance("var(-" + tokens.currToken() + ")");
+		t = ParsedType::number;
 	}
 	else if (std::regex_match(token, NUMBER_RE)) // check for number
 	{
@@ -678,15 +684,12 @@ void Parser::parseTerm(ParsedType& t)
 		parseCommaSep(&Parser::parseExpr, "]");
 
 		maybeMultiline();
-		if (tokens.currToken() == "]")
-		{
-			appendAndAdvance(" })");
-			t = ParsedType::list;
-		}
-		else
+		if (tokens.currToken() != "]")
 		{
 			throw SyntaxException("expected closing ']'");
 		}
+		appendAndAdvance(" })");
+		t = ParsedType::list;
 	}
 	else if (token == "{") // check for map
 	{
@@ -694,15 +697,12 @@ void Parser::parseTerm(ParsedType& t)
 		maybeMultiline();
 		parseCommaSep(&Parser::parseMapEntry, "}");
 		maybeMultiline();
-		if (tokens.currToken() == "}")
-		{
-			appendAndAdvance(" })");
-			t = ParsedType::map;
-		}
-		else
+		if (tokens.currToken() != "}")
 		{
 			throw SyntaxException("expected closing '}'");
 		}
+		appendAndAdvance(" })");
+		t = ParsedType::map;
 	}
 	else if (parseProcCall() || parseVar(false)) // check if this is valid variable-type expression indicating 'any' type
 	{
@@ -737,6 +737,7 @@ bool Parser::extraParseInsideProcedure()
 	if (tokens.currToken() == "exit")
 	{
 		appendAndAdvance("return null;");
+		return true;
 	}
 	else if (tokens.currToken() == "output")
 	{
@@ -888,7 +889,7 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 				// for i <- [n] (down)? to [n] do
 				//           ^
 				parseExpr({ ParsedType::number });
-				trans.appendToBuffer("; _" + forVar);
+				trans.appendToBuffer("; v_" + forVar);
 
 				// for i <- [n] (down)? to [n] do
 				//              ^
@@ -910,7 +911,7 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 					//                             ^
 					if (tokens.currToken() == "do")
 					{
-						appendAndAdvance("; _" + forVar + (down ? " -= 1)" : " += 1)"));
+						appendAndAdvance("; v_" + forVar + (down ? " -= 1)" : " += 1)"));
 						additionalRule = &Parser::extraParseInsideLoop;
 						return true;
 					}
@@ -985,7 +986,7 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 		//            ^
 		if (NameManager::validName(procName))
 		{
-			appendAndAdvance("f_" + procName + "(");
+			appendAndAdvance("p_" + procName + "(");
 			inProcedure = true;
 
 			int numParams = 0;

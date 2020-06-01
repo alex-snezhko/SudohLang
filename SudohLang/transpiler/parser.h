@@ -58,5 +58,5 @@ class Parser
 
 public:
 	Parser() : inProcedure(false), currStatementScope(0) {}
-	void parse(const std::string fileName, bool main);
+	void parse(const std::string& fileName, bool main);
 };
