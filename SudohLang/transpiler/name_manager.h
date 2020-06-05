@@ -29,9 +29,12 @@ class NameManager
 
 	// a set of all procedures that are available to be used
 	std::set<SudohProcedure> proceduresDefined = {
-		{ "print", 1 }, { "printLine", 1 }, { "length", 1 },
-		{ "string", 1 }, { "integer", 1 }, { "random", 0 },
-		{ "remove", 2 }, { "append", 2 }, { "insert", 3 }
+		{ "input", 0 }, { "print", 1 }, { "printLine", 1 }, { "length", 1 },
+		{ "string", 1 }, { "integer", 1 }, { "number", 1 }, { "ascii", 1 },
+		{ "random", 1 }, { "remove", 2 }, { "removeLast", 1 }, { "append", 2 },
+		{ "insert", 3 }, { "range", 3 }, { "type", 1 }, { "pow", 2 },
+		{ "cos", 1 }, { "sin", 1 }, { "tan", 1 }, { "acos", 1 },
+		{ "asin", 1 }, { "atan", 1 }, { "atan2", 2 }, { "log", 2 }
 	};
 	// a list of programmer defined procedures in this source file; does not include
 	// built-in/imported procedures as in proceduresDefined

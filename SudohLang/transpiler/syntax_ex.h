@@ -24,7 +24,7 @@ public:
 		return tokenNum;
 	}
 
-	const char* what() const
+	const char* what() const throw()
 	{
 		return msg.c_str();
 	}

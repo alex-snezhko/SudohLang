@@ -49,6 +49,7 @@
   <ItemGroup>
     <None Include="example.sud" />
     <None Include="linked.sud" />
+    <None Include="transpiler\Makefile" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="transpiler\transpiled_buf.h">

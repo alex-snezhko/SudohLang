@@ -19,7 +19,7 @@ int main(int argc, char** argv)
 	const std::string noExtension = fileName.substr(0, index);
 
 	Parser p;
-	p.parse("linked", true);
+	p.parse(noExtension, true);
 	std::cout << "Compilation successful.\n";
 
 	return 0;

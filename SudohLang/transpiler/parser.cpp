@@ -139,7 +139,7 @@ void Parser::parse(const std::string& fileName, bool main)
 		// print the error message and indicate parse failure
 		std::cout << "Syntax error on line " << tokens.getTokens()[tokenNum].lineNum <<
 			" of file '" + fileName + ".sud': " << ex.what() << "\n\t" << line << "\n\t";
-		for (int i = 0; i < fileCharNum - beginLine; i++)
+		for (size_t i = 0; i < fileCharNum - beginLine; i++)
 		{
 			std::cout << " ";
 		}
@@ -606,7 +606,7 @@ void Parser::parseExpr(const std::vector<ParsedType> allowed)
 	if (type != ParsedType::any && std::find(allowed.begin(), allowed.end(), type) == allowed.end())
 	{
 		std::string msg = "expected expression of type (" + typeToString(allowed[0]);
-		for (int i = 1; i < allowed.size(); i++)
+		for (size_t i = 1; i < allowed.size(); i++)
 		{
 			msg += " | " + typeToString(allowed[i]);
 		}
@@ -619,7 +619,7 @@ void Parser::parseExpr(const std::vector<ParsedType> allowed)
 // parse a single term in an expression
 void Parser::parseTerm(ParsedType& t)
 {
-	static const std::regex NUMBER_RE = std::regex("[0-9]+(\.[0-9]+)?");
+	static const std::regex NUMBER_RE = std::regex("[0-9]+([.][0-9]+)?");
 	static const std::regex STRING_RE = std::regex("\".*\"");
 
 	const std::string& token = tokens.currToken();
