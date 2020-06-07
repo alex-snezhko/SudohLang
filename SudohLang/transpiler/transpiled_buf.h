@@ -1,4 +1,6 @@
-#pragma once
+#ifndef TRANSPILED_BUF_H
+#define TRANSPILED_BUF_H
+
 #include <string>
 
 class TranspiledBuffer
@@ -19,3 +21,5 @@ public:
 	void includeFile(const std::string fileName);
 	std::string fullTranspiled(bool main);
 };
+
+#endif

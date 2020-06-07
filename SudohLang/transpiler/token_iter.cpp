@@ -8,7 +8,7 @@ void TokenIterator::tokenize(const std::string& contents)
 {
 	// symbols which act as both delimiters and tokens themselves
 	static const std::vector<std::string> delimTokens = {
-		" ", ",", "\"", "\n", "\t",
+		" ", ",", "\"", "\r\n", "\n", "\t",
 		"(", ")", "[", "]", "{", "}",
 		"<-", "+", "-", "*", "//", "/",
 		"<=", "<", ">=", ">", "=", "!="
@@ -89,10 +89,11 @@ void TokenIterator::tokenize(const std::string& contents)
 					tokens.push_back({ lineNum, i, "\t" });
 				}
 			}
-			else if (*delim == "\n")
+			else if (*delim == "\r\n" || *delim == "\n")
 			{
-				tokens.push_back({ lineNum++, i, "\n" });
 				beginLine = true;
+				tokens.push_back({ lineNum++, i, "\n" });
+				i += delim->length() - 1;
 			}
 			else
 			{

@@ -1,4 +1,6 @@
-#pragma once
+#ifndef NAME_MANAGER_H
+#define NAME_MANAGER_H
+
 #include <string>
 #include <set>
 #include <vector>
@@ -67,3 +69,5 @@ public:
 
 	const std::vector<SudohProcedure>& getProceduresDefined();
 };
+
+#endif

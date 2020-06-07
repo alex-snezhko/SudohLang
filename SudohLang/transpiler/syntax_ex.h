@@ -1,4 +1,6 @@
-#pragma once
+#ifndef SYNTAX_EX_H
+#define SYNTAX_EX_H
+
 #include <exception>
 #include <string>
 
@@ -29,3 +31,5 @@ public:
 		return msg.c_str();
 	}
 };
+
+#endif

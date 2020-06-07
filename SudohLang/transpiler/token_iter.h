@@ -1,4 +1,6 @@
-#pragma once
+#ifndef TOKEN_ITER_H
+#define TOKEN_ITER_H
+
 #include <vector>
 #include <string>
 
@@ -40,3 +42,5 @@ public:
 	size_t getTokenNum();
 	void setTokenNum(size_t val);
 };
+
+#endif

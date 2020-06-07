@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="transpiler\sudohc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="sudoh\variable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -39,10 +36,10 @@
     <ClCompile Include="sudoh\runtime_ex.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sudoh\sudohstdlib.cpp">
+    <ClCompile Include="transpiler\sudoht.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="sudoh\example.cpp">
+    <ClCompile Include="sudoh\sudoh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -68,9 +65,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sudoh\variable.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="sudoh\sudohstdlib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sudoh\sudoh.h">

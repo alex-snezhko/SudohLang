@@ -12,7 +12,7 @@ Sudoh is a strongly-typed, dynamically type-checked language. There are 6 types 
 - String
 - Boolean
 - List
-- Map
+- Object
 - Null
 
 ### Statements
@@ -33,7 +33,7 @@ a <- "hello"     // we are now reassigning 'a' to contain the string value "hell
 It is possible for a single statement/expression to be split into multiple lines, for the primary reason of avoiding
 extremely long lines in complex conditions, arithmetic expressions, etc. However, there are some rules associated with this.
 Firstly, a statement may only be split into multiple lines immediately after a binary operator e.g. `+` or `and`, after a comma,
-or after the beginning brace/before the ending brace of a 'list'/'map' literal. On top of that, all lines of a multiline statement
+or after the beginning brace/before the ending brace of a list/object literal. On top of that, all lines of a multiline statement
 following the first must be indented at least one level higher than the first line.
 
 These are some statements containing valid multiline expressions:
@@ -53,10 +53,10 @@ largeList <- [
     "string 5"
     ]
 
-largeMap <- {
+largeObject <- {
     "value1" <- 42,
     "value2" <- null,
-    8000 <- 8001,
+    "8000" <- 8001,
     "hello" <- "world"
     }
 ```
@@ -78,11 +78,11 @@ largeList <- [
     "string 5"
     ]
 
-largeMap <-      // cannot end line after '<-'
+largeObject <-      // cannot end line after '<-'
 {
     "value1" <- 42,
     "value2" <- null,
-    8000 <- 8001,
+    "8000" <- 8001,
     "hello" <- "world"
 }
 ```
@@ -271,23 +271,22 @@ remove(list, 0)     // remove element at index '0' from 'list'
 append(list, "hi")  // list = [9, 2, 3, 4, 5, 6, 7, "hi"]
 ```
 
-### Map
-Maps in Sudoh are data structures which contain key-value element pairs. Looking up a key in a map will return the key's associated
-value. Values may be accessed or inserted into a map using bracket notation, and removed with the `remove` function. A map may not
-contain a key of `null`. The number of elements in a map may be found using the `length` function
+### Object
+Objects in Sudoh are associative data structures which map string 'fields' to values. Looking up a field in an object will return the
+field's associated value. Values may be accessed or inserted into an object using bracket notation, and removed with the `remove`
+function. The number of elements in an object may be found using the `length` function
 ```
-empty <- {}            // declare an empty map
+empty <- {}            // declare an empty object
 length(empty)          // 0
 
-// declare a map with 2 elements: the first having key "hello" with value 'null'
-// and the second having key '42' and value "world"
-map <- { "hello" <- null, 42 <- "world" }
+// declare an object with 2 fields: "hello" = 'null', "42" = "world"
+object <- { "hello" <- null, "42" <- "world" }
 
-length(map)            // 2
-map["third"] <- 2      // "hello": null, 42: "world", "third": 2
-map["hello"] <- "hi"   // "hello": "hi", 42: "world", "third": 2
-remove(map, "hello")   // 42: "world", "third": 2
-hello <- map["hello"]  // invalid; value with key "hello" in 'map' does not exist
+length(object)            // 2
+object["third"] <- 2      // "hello": null, "42": "world", "third": 2
+object["hello"] <- "hi"   // "hello": "hi", "42": "world", "third": 2
+remove(object, "hello")   // "42": "world", "third": 2
+hello <- object["hello"]  // invalid; field "hello" in 'object' does not exist
 ```
 
 ### Null
@@ -367,10 +366,10 @@ for i <- 0 to -1 do
     print(i)
 // nothing will be printed
 ```
-Sudoh also has a `for each` loop which iterates over all of the elements of a collection (string, list, or map) and runs
+Sudoh also has a `for each` loop which iterates over all of the elements of a collection (string, list, or object) and runs
 a block of code for each element in the collection. The structure of a `for each` loop statement is as follows:
 `for each [iteration variable] in [collection] do`. `for each` loop on a string: iterate over each character in the string;
-on a list: iterate over each element in the list; on a map: iterate over each key in the map
+on a list: iterate over each element in the list; on a object: iterate over each field name of the object (in lexical order)
 ```
 for each c in "asdf" do
     print(c + " ")
@@ -381,10 +380,10 @@ for each e in list do
     print("[" + e + "]")
 // '[0][1][2][3]' will be printed
 
-map <- { "a" <- 0, "b" <- "apple", 3 <- null }
-for each key in map do
-    print(string(key) + ": " + map[key] + "  ")
-// 'a: 0  b: apple  3: null  ' will be printed
+object <- { "a" <- 0, "c" <- "apple", "b" <- null }
+for each key in object do
+    print(string(key) + ": " + object[key] + "  ")
+// 'a: 0  b: null  c: apple  ' will be printed
 ```
 
 ### `repeat` loops
@@ -584,7 +583,7 @@ printLine("input: " + in)        // 'input: hello' will be printed
 ### `length` input: `collection`; output: integer
 `length` is a procedure which outputs the number of elements in a collection. For a string, `length` will
 return the number of characters in the string. For a list, `length` will return the number of elements in the
-list. For a map, `length` will return the number of key-value pairs in the map.
+list. For an object, `length` will return the number of fields in the object.
 ```
 str <- "asdf"
 length(str)        // 4
@@ -592,8 +591,8 @@ length(str)        // 4
 list <- [1, 2, 3]
 length(list)       // 3
 
-map <- { "a" <- 1, "b" <- 2}
-length(map)        // 2
+object <- { "a" <- 1, "b" <- 2}
+length(object)        // 2
 
 length(2)          // invalid; parameter must be a collection
 ```
@@ -673,8 +672,8 @@ insert(list, 0, "!")       // list = ["!", "a", "b", "c"]
 ```
 
 ### `remove` input: `container`, `element`
-`remove` is a procedure which removes an element from a list or map. If the first parameter passed in is a list,
-then the second must be an integer index at which to remove the element from. If the first parameter is a map,
+`remove` is a procedure which removes an element from a list or object. If the first parameter passed in is a list,
+then the second must be an integer index at which to remove the element from. If the first parameter is an object,
 then the second must be the key of a key-value pair to remove.
 ```
 list <- [1, 2, 3, 4]
@@ -682,9 +681,9 @@ remove(list, 0)       // list = [2, 3, 4]
 remove(list, 2)       // list = [2, 3]
 remove(list, 3)       // invalid; index 3 is outside of list bounds
 
-map <- {"a" <- 1, "b" <- 2}
-remove(map, "a")      // map = { "b" <- 2 }
-remove(map, "c")      // invalid; there is no key "c" in the map
+object <- {"a" <- 1, "b" <- 2}
+remove(object, "a")      // object = { "b" <- 2 }
+remove(object, "c")      // invalid; there is no field "c" in the object
 ```
 
 ### `removeLast` input: `list`
@@ -702,7 +701,7 @@ type(123)    // "number"
 type(true)   // "boolean"
 type("a")    // "string"
 type([])     // "list"
-type({})     // "map"
+type({})     // "object"
 ```
 
 ### `pow` input: `num`, `power`

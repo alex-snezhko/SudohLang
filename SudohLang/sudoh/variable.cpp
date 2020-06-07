@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iostream>
 #include <memory>
+#include <cmath>
 
 // epsilon used for checking if a number (inherently type double) can be said to be an integer
 constexpr double EPSILON = 0.0001;
@@ -72,27 +73,6 @@ size_t assertValidIndex(const std::string& containerType, const Variable& index)
 // |   Variable implementation   |
 // +-----------------------------+
 
-// hash functor for unordered_map; defines hashing algorithm to be used
-// based on type of 'Variable' object
-size_t Variable::VariableHash::operator()(const Variable& v) const
-{
-	switch (v.type)
-	{
-	case Type::number:
-		return std::hash<double>()(v.val.numVal);
-	case Type::boolean:
-		return std::hash<bool>()(v.val.boolVal);
-	case Type::string:
-		return std::hash<std::string>()(v.val.stringVal);
-	case Type::list:
-		return std::hash<std::shared_ptr<List>>()(v.val.listRef);
-	case Type::map:
-		return std::hash<std::shared_ptr<Map>>()(v.val.mapRef);
-	default:
-		runtimeException("cannot add key 'null' to map");
-	}
-}
-
 std::string Variable::typeString() const
 {
 	switch (type)
@@ -105,9 +85,9 @@ std::string Variable::typeString() const
 		return "string";
 	case Type::list:
 		return "list";
-	case Type::map:
-		return "map";
-	case Type::null:
+	case Type::object:
+		return "object";
+	default:
 		return "null";
 	}
 }
@@ -117,7 +97,7 @@ Variable::Val::Val(bool val) : boolVal(val) {}
 Variable::Val::Val(double val) : numVal(val) {}
 Variable::Val::Val(std::string val) : stringVal(val) {}
 Variable::Val::Val(std::shared_ptr<List> val) : listRef(val) {}
-Variable::Val::Val(std::shared_ptr<Map> val) : mapRef(val) {}
+Variable::Val::Val(std::shared_ptr<Object> val) : objRef(val) {}
 Variable::Val::~Val() {}
 
 Variable::Variable() : type(Type::null) {}
@@ -125,7 +105,16 @@ Variable::Variable(double n) : type(Type::number), val(n) {}
 Variable::Variable(Bool b) : type(Type::boolean), val(b == Bool::t) {}
 Variable::Variable(std::string s) : type(Type::string), val(s) {}
 Variable::Variable(std::shared_ptr<List> l) : type(Type::list), val(l) {}
-Variable::Variable(std::shared_ptr<Map> m) : type(Type::map), val(m) {}
+Variable::Variable(std::shared_ptr<Object> m) : type(Type::object), val(m)
+{
+	for (auto& kv : *m)
+	{
+		if (kv.first.type != Type::string)
+		{
+			runtimeException("object field identifier must be a string; got type '" + kv.first.typeString() + "'");
+		}
+	}
+}
 
 Variable::Variable(const Variable& other) : type(other.type) { setValue(other); }
 
@@ -148,8 +137,8 @@ void Variable::setValue(const Variable& other)
 	case Type::list:
 		new(&val.listRef) std::shared_ptr<List>(other.val.listRef);
 		break;
-	case Type::map:
-		new(&val.listRef) std::shared_ptr<Map>(other.val.mapRef);
+	case Type::object:
+		new(&val.listRef) std::shared_ptr<Object>(other.val.objRef);
 		break;
 	}
 }
@@ -162,9 +151,9 @@ void Variable::freeMem()
 	{
 		val.listRef.~shared_ptr();
 	}
-	else if (type == Type::map)
+	else if (type == Type::object)
 	{
-		val.mapRef.~shared_ptr();
+		val.objRef.~shared_ptr();
 	}
 	else if (type == Type::string)
 	{
@@ -207,23 +196,23 @@ std::string Variable::toString() const
 		contents += " ]";
 		return contents;
 	}
-	case Type::map:
+	case Type::object:
 	{
 		std::string contents = "{ ";
 		bool first = true;
-		for (auto& e : *val.mapRef)
+		for (auto& e : *val.objRef)
 		{
 			if (!first)
 			{
 				contents += ", ";
 			}
-			contents += e.first.toString() + " <- " + e.second.toString();
+			contents += e.first.val.stringVal + " <- " + e.second.toString();
 			first = false;
 		}
 		contents += " }";
 		return contents;
 	}
-	case Type::null:
+	default:
 		return "null";
 	}
 }
@@ -253,6 +242,7 @@ Variable Variable::operator+(const Variable& other) const
 	}
 
 	runtimeException("illegal operation '+' between types " + typeString() + " and " + other.typeString());
+	return Variable();
 }
 
 Variable Variable::operator-(const Variable& other) const
@@ -263,6 +253,7 @@ Variable Variable::operator-(const Variable& other) const
 	}
 
 	runtimeException("illegal operation '-' between types " + typeString() + " and " + other.typeString());
+	return Variable();
 }
 
 Variable Variable::operator*(const Variable& other) const
@@ -273,6 +264,7 @@ Variable Variable::operator*(const Variable& other) const
 	}
 
 	runtimeException("illegal operation '*' between types " + typeString() + " and " + other.typeString());
+	return Variable();
 }
 
 Variable Variable::operator/(const Variable& other) const
@@ -283,6 +275,7 @@ Variable Variable::operator/(const Variable& other) const
 	}
 
 	runtimeException("illegal operation '/' between types " + typeString() + " and " + other.typeString());
+	return Variable();
 }
 
 Variable Variable::operator%(const Variable& other) const
@@ -293,6 +286,7 @@ Variable Variable::operator%(const Variable& other) const
 	}
 
 	runtimeException("illegal operation 'mod' between types " + typeString() + " and " + other.typeString());
+	return Variable();
 }
 
 // +--------------------------------------------------------------+
@@ -404,8 +398,8 @@ bool Variable::operator==(const Variable& other) const
 		return val.stringVal == other.val.stringVal;
 	case Type::list:
 		return val.listRef == other.val.listRef;
-	case Type::map:
-		return val.mapRef == other.val.mapRef;
+	case Type::object:
+		return val.objRef == other.val.objRef;
 	}
 	return false;
 }
@@ -431,6 +425,7 @@ bool Variable::operator<(const Variable& other) const
 	}
 
 	runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+	return false;
 }
 
 bool Variable::operator<=(const Variable& other) const
@@ -449,6 +444,7 @@ bool Variable::operator<=(const Variable& other) const
 	}
 
 	runtimeException("illegal comparison between types " + typeString() + " and " + other.typeString());
+	return false;
 }
 
 bool Variable::operator>(const Variable& other) const
@@ -461,12 +457,12 @@ bool Variable::operator>=(const Variable& other) const
 	return !operator<(other);
 }
 
-// +--------------------------------------------------------+
-// |   Indexing operators valid for string, list, and map   |
-// |   values. Transpiled [] returns a reference and is     |
-// |   used for an index operation on the left side of an   |
-// |   assignment, .at() otherwise                          |
-// +--------------------------------------------------------+
+// +-----------------------------------------------------------+
+// |   Indexing operators valid for string, list, and object   |
+// |   values. Transpiled [] returns a reference and is        |
+// |   used for an index operation on the left side of an      |
+// |   assignment, .at() otherwise                             |
+// +-----------------------------------------------------------+
 
 Variable& Variable::operator[](const Variable& index)
 {
@@ -488,11 +484,16 @@ Variable& Variable::operator[](const Variable& index)
 
 		return list[idx];
 	}
-	case Type::map:
-		return (*val.mapRef)[index];
+	case Type::object:
+		if (index.type != Type::string)
+		{
+			runtimeException("index into object must be of type 'string'");
+		}
+		return (*val.objRef)[index];
 	}
 
 	runtimeException("cannot index into type " + typeString());
+	return *this;
 }
 
 Variable Variable::at(const Variable& index) const
@@ -519,19 +520,25 @@ Variable Variable::at(const Variable& index) const
 		}
 		return (*val.listRef)[idx];
 	}
-	case Type::map:
+	case Type::object:
 	{
-		Map& m = *val.mapRef;
-		auto item = m.find(index);
-		if (item == m.end())
+		Object& o = *val.objRef;
+		if (index.type != Type::string)
 		{
-			runtimeException("key '" + index.toString() + "' does not exist in the map");
+			runtimeException("index into object must be of type 'string'");
 		}
-		return m[index];
+
+		auto item = o.find(index);
+		if (item == o.end())
+		{
+			runtimeException("field '" + index.val.stringVal + "' does not exist in the object");
+		}
+		return item->second;
 	}
 	}
 	
 	runtimeException("cannot index into type " + typeString());
+	return Variable();
 }
 
 // for converting a boolean variable to type bool for a condition
@@ -542,6 +549,7 @@ Variable::operator bool() const
 		return val.boolVal;
 	}
 	runtimeException("expected boolean type");
+	return false;
 }
 
 // +-------------------------------------+
@@ -558,8 +566,8 @@ Variable::VariableIterator::VariableIterator(Variable* var, bool begin) : contai
 	case Type::list:
 		listIt = begin ? var->val.listRef->begin() : var->val.listRef->end();
 		break;
-	case Type::map:
-		mapIt = begin ? var->val.mapRef->begin() : var->val.mapRef->end();
+	case Type::object:
+		objIt = begin ? var->val.objRef->begin() : var->val.objRef->end();
 		break;
 	default:
 		runtimeException("cannot iterate over type " + var->typeString());
@@ -576,36 +584,38 @@ void Variable::VariableIterator::operator++()
 	case Type::list:
 		listIt++;
 		break;
-	case Type::map:
-		mapIt++;
+	case Type::object:
+		objIt++;
 		break;
 	}
 }
 
 Variable Variable::VariableIterator::operator*()
 {
-	switch (container->type)
+	if (container->type == Type::string)
 	{
-	case Type::string:
 		return std::string(1, *stringIt);
-	case Type::list:
-		return *listIt;
-	case Type::map:
-		return mapIt->first;
 	}
+	if (container->type == Type::list)
+	{
+		return *listIt;
+	}
+
+	return objIt->first;
 }
 
 bool Variable::VariableIterator::operator!=(const VariableIterator& other)
 {
-	switch (container->type)
+	if (container->type == Type::string)
 	{
-	case Type::string:
 		return stringIt != other.stringIt;
-	case Type::list:
-		return listIt != other.listIt;
-	case Type::map:
-		return mapIt != other.mapIt;
 	}
+	if (container->type == Type::list)
+	{
+		return listIt != other.listIt;
+	}
+
+	return objIt != other.objIt;
 }
 
 Variable::VariableIterator Variable::begin()
@@ -616,4 +626,17 @@ Variable::VariableIterator Variable::begin()
 Variable::VariableIterator Variable::end()
 {
 	return VariableIterator(this, false);
+}
+
+bool Variable::ObjectComp::operator()(const Variable& left, const Variable& right) const
+{
+	if (left.type != Type::string)
+	{
+		runtimeException("object field identifier must be a string; got type '" + left.typeString() + "'");
+	}
+	if (right.type != Type::string)
+	{
+		runtimeException("object field identifier must be a string; got type '" + right.typeString() + "'");
+	}
+	return left.val.stringVal < right.val.stringVal;
 }

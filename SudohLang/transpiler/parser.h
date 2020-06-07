@@ -1,10 +1,13 @@
+#ifndef PARSER_H
+#define PARSER_H
+
 #include "transpiled_buf.h"
 #include "name_manager.h"
 #include "token_iter.h"
 #include <map>
 
 // all types in Sudoh. 'any' is used for variables or function calls as their type is not static
-enum class ParsedType { number, boolean, string, list, map, null, any };
+enum class ParsedType { number, boolean, string, list, object, null, any };
 
 // main class for parsing/transpiling a Sudoh source file. Uses a grammar to parse contents of file
 class Parser
@@ -53,10 +56,12 @@ class Parser
 	
 	void parseIncludeFile();
 	void parseProcedureParameter();
-	void parseMapEntry();
+	void parseObjectEntry();
 	int parseCommaSep(void (Parser::*parseItem)(), const std::string stop, bool printComma = true);
 
 public:
 	Parser() : inProcedure(false), currStatementScope(0) {}
 	void parse(const std::string& fileName, bool main);
 };
+
+#endif

@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 
 	Parser p;
 	p.parse(noExtension, true);
-	std::cout << "Compilation successful.\n";
+	std::cout << "Transpilation successful.\n";
 
 	return 0;
 }

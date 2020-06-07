@@ -18,8 +18,8 @@ std::string typeToString(const ParsedType t)
 		return "string";
 	case ParsedType::list:
 		return "list";
-	case ParsedType::map:
-		return "map";
+	case ParsedType::object:
+		return "object";
 	case ParsedType::null:
 		return "null";
 	default:
@@ -73,7 +73,7 @@ void Parser::parse(const std::string& fileName, bool main)
 	file.open(fileName + ".sud");
 	if (!file)
 	{
-		std::cout << "File '" + fileName + ".sud' could not be found. Aborting compilation\n";
+		std::cout << "File '" + fileName + ".sud' could not be found. Aborting transpilation\n";
 		exit(1);
 		return;
 	}
@@ -143,7 +143,7 @@ void Parser::parse(const std::string& fileName, bool main)
 		{
 			std::cout << " ";
 		}
-		std::cout << "^\nAborting compilation.\n";
+		std::cout << "^\nAborting transpilation.\n";
 		exit(1);
 	}
 
@@ -390,7 +390,7 @@ bool Parser::parseVar(bool lvalue)
 		bool exists = names.varExists(name, inProcedure);
 		parseVarName(lvalue ? VarParseMode::mayBeNew : VarParseMode::mustExist);
 
-		// also accept list, string, or map indexed values as variables
+		// also accept list, string, or object indexed values as variables
 		while (tokens.currToken() == "[")
 		{
 			if (!exists)
@@ -483,7 +483,7 @@ bool Parser::parseVarName(VarParseMode mode)
 typedef std::map<ParsedType, std::set<ParsedType>> Operations;
 static const std::set<ParsedType> ALL = {
 		ParsedType::number, ParsedType::boolean, ParsedType::string,
-		ParsedType::list, ParsedType::map, ParsedType::null
+		ParsedType::list, ParsedType::object, ParsedType::null
 };
 // helper function for parseExprBinary which checks integrity of binary operation by checking
 // if operation between two specified types is allowed
@@ -557,7 +557,7 @@ void Parser::parseComparison(ParsedType& type)
 				{ ParsedType::boolean, { ParsedType::boolean, ParsedType::null } },
 				{ ParsedType::string, { ParsedType::string, ParsedType::null } },
 				{ ParsedType::list, { ParsedType::list, ParsedType::null } },
-				{ ParsedType::map, { ParsedType::map, ParsedType::null } },
+				{ ParsedType::object, { ParsedType::object, ParsedType::null } },
 				{ ParsedType::any, ALL }
 				}, &Parser::parseArithmetic);
 		}
@@ -679,7 +679,7 @@ void Parser::parseTerm(ParsedType& t)
 	}
 	else if (token == "[") // check for list
 	{
-		appendAndAdvance("var(list{ ");
+		appendAndAdvance("var(LIST{ ");
 		maybeMultiline();
 		parseCommaSep(&Parser::parseExpr, "]");
 
@@ -691,18 +691,18 @@ void Parser::parseTerm(ParsedType& t)
 		appendAndAdvance(" })");
 		t = ParsedType::list;
 	}
-	else if (token == "{") // check for map
+	else if (token == "{") // check for object
 	{
-		appendAndAdvance("var(map{ ");
+		appendAndAdvance("var(OBJECT{ ");
 		maybeMultiline();
-		parseCommaSep(&Parser::parseMapEntry, "}");
+		parseCommaSep(&Parser::parseObjectEntry, "}");
 		maybeMultiline();
 		if (tokens.currToken() != "}")
 		{
 			throw SyntaxException("expected closing '}'");
 		}
 		appendAndAdvance(" })");
-		t = ParsedType::map;
+		t = ParsedType::object;
 	}
 	else if (parseProcCall() || parseVar(false)) // check if this is valid variable-type expression indicating 'any' type
 	{
@@ -940,12 +940,12 @@ bool Parser::parseStructure(bool (Parser::*& additionalRule)(), void (Parser::*&
 					appendAndAdvance(" : ");
 					static std::set<ParsedType> valid = {
 						ParsedType::string, ParsedType::list,
-						ParsedType::map, ParsedType::any
+						ParsedType::object, ParsedType::any
 					};
 
 					// for each e in [x] do
 					//                ^
-					parseExpr({ ParsedType::string, ParsedType::list, ParsedType::map });
+					parseExpr({ ParsedType::string, ParsedType::list, ParsedType::object });
 
 					// for each e in [x] do
 					//                   ^
@@ -1050,17 +1050,17 @@ void Parser::parseIncludeFile()
 	tokens.advance();
 }
 
-// parse a single entry in a possibly comma-seperated map
-void Parser::parseMapEntry()
+// parse a single entry in a possibly comma-seperated object
+void Parser::parseObjectEntry()
 {
-	// map entries must be in the form of <expression> <- <expression>
+	// object entries must be in the form of <expression> <- <expression>
 
 	trans.appendToBuffer("{ ");
 
 	parseExpr();
 	if (tokens.currToken() != "<-")
 	{
-		throw SyntaxException("map entry must be of form <key> <- <value>");
+		throw SyntaxException("object entry must be of form <field> <- <value>");
 	}
 	appendAndAdvance(", ");
 	parseExpr();
