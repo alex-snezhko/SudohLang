@@ -14,11 +14,11 @@ constexpr double EPSILON = 0.0001;
 // |   types for various operations           |
 // +------------------------------------------+
 
-bool Variable::stringCheck(const Variable& var, std::string& out)
+bool Variable::stringCheck(const Variable& var, const std::string*& out)
 {
 	if (var.type == Type::string)
 	{
-		out = var.val.stringVal;
+		out = &var.val.stringVal;
 		return true;
 	}
 	return false;
@@ -102,7 +102,8 @@ Variable::Val::~Val() {}
 
 Variable::Variable() : type(Type::null) {}
 Variable::Variable(double n) : type(Type::number), val(n) {}
-Variable::Variable(Bool b) : type(Type::boolean), val(b == Bool::t) {}
+Variable::Variable(int n) : type(Type::number), val((double)n) {}
+Variable::Variable(bool b) : type(Type::boolean), val(b) {}
 Variable::Variable(std::string s) : type(Type::string), val(s) {}
 Variable::Variable(std::shared_ptr<List> l) : type(Type::list), val(l) {}
 Variable::Variable(std::shared_ptr<Object> m) : type(Type::object), val(m)
@@ -376,6 +377,12 @@ Variable& Variable::operator=(const Variable& other)
 // |   same type ('='/'!=' valid for null as well              |
 // +-----------------------------------------------------------+
 
+double maybeIntVal(double val)
+{
+	double rounded = round(val);
+	return abs(rounded - val) < EPSILON ? rounded : val;
+}
+
 bool Variable::operator==(const Variable& other) const
 {
 	if (type == Type::null || other.type == Type::null)
@@ -391,7 +398,7 @@ bool Variable::operator==(const Variable& other) const
 	switch (other.type)
 	{
 	case Type::number:
-		return val.numVal == other.val.numVal;
+		return maybeIntVal(val.numVal) == maybeIntVal(other.val.numVal);
 	case Type::boolean:
 		return val.boolVal == other.val.boolVal;
 	case Type::string:
@@ -419,7 +426,7 @@ bool Variable::operator<(const Variable& other) const
 	switch (other.type)
 	{
 	case Type::number:
-		return val.numVal < other.val.numVal;
+		return maybeIntVal(val.numVal) < maybeIntVal(other.val.numVal);
 	case Type::string:
 		return val.stringVal < other.val.stringVal;
 	}
@@ -438,7 +445,7 @@ bool Variable::operator<=(const Variable& other) const
 	switch (other.type)
 	{
 	case Type::number:
-		return val.numVal <= other.val.numVal;
+		return maybeIntVal(val.numVal) <= maybeIntVal(other.val.numVal);
 	case Type::string:
 		return val.stringVal <= other.val.stringVal;
 	}

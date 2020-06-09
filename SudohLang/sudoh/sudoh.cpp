@@ -85,7 +85,7 @@ Variable p_integer(Variable num)
 
 Variable p_number(Variable str)
 {
-	const std::string& s = assertTypeGeneric("str", "number", "string", str, Variable::stringCheck);
+	const std::string& s = *assertTypeGeneric("str", "number", "string", str, Variable::stringCheck);
 
 	try
 	{

@@ -1,0 +1,34 @@
+procedure sort <- arr
+	sort(arr, 0, length(arr) - 1)
+
+
+procedure sort <- arr, low, high
+	if low < high then
+		index <- partition(arr, low, high)
+		sort(arr, low, index - 1)
+		sort(arr, index + 1, high)
+
+
+procedure partition <- arr, low, high
+	pivot <- arr[high]
+
+	i <- low - 1
+	for j <- low to high-1 do
+		if arr[j] < pivot then
+			i <- i + 1
+			temp <- arr[i]
+			arr[i] <- arr[j]
+			arr[j] <- temp
+
+	temp <- arr[i + 1]
+	arr[i + 1] <- arr[high]
+	arr[high] <- temp
+	output i + 1
+
+
+arr <- []
+for i <- 0 to 99 do
+	arr[i] <- random(100)
+
+sort(arr)
+printLine(arr)

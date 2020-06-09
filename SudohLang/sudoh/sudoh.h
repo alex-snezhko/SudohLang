@@ -6,8 +6,6 @@
 #define LIST (std::shared_ptr<Variable::List>)new Variable::List
 #define OBJECT (std::shared_ptr<Variable::Object>)new Variable::Object
 
-const Variable True = Variable(Bool::t);
-const Variable False = Variable(Bool::f);
 const Variable null = Variable();
 
 typedef Variable var;

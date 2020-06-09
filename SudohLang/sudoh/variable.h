@@ -9,10 +9,6 @@
 // enum that is used to keep track of the type of a variable
 enum class Type { number, boolean, string, list, object, null, charRef };
 
-// Boolean pseudo-type that is used to avoid ambiguity for Variable constructor;
-// for example, so that 'Variable(0)' is not ambiguated between using bool or double constructor
-enum class Bool { t, f };
-
 class Variable
 {
 	struct ObjectComp
@@ -53,14 +49,15 @@ private:
 
 public:
 
-	static bool stringCheck(const Variable& var, std::string& out);
+	static bool stringCheck(const Variable& var, const std::string*& out);
 	static bool indexCheck(const Variable& var, size_t& out);
 	static bool numCheck(const Variable& var, double& out);
 	static bool listCheck(const Variable& var, List*& out);
 
 	Variable();
 	Variable(double n);
-	Variable(Bool b);
+	Variable(int n);
+	Variable(bool b);
 	Variable(std::string s);
 	Variable(std::shared_ptr<List> l);
 	Variable(std::shared_ptr<Object> m);

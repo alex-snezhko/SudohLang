@@ -44,9 +44,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="example.sud" />
-    <None Include="linked.sud" />
     <None Include="transpiler\Makefile" />
+    <None Include="examples\fibonacci.sud" />
+    <None Include="examples\queue.sud" />
+    <None Include="examples\sort.sud" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="transpiler\transpiled_buf.h">

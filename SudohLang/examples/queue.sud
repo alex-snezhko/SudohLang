@@ -1,0 +1,40 @@
+procedure Queue
+	output {
+		"head" <- null,
+		"tail" <- null,
+		"size" <- 0
+		}
+
+
+procedure enqueue <- q, val
+	node <- { "val" <- val, "next" <- null }
+
+	if q["size"] = 0 then
+		q["head"] <- node
+	else
+		q["tail"]["next"] <- node
+
+	q["tail"] <- node
+	q["size"] <- q["size"] + 1
+
+
+procedure dequeue <- q
+	head <- q["head"]
+
+	if q["size"] != 0 then
+		q["head"] <- q["head"]["next"]
+
+	if q["size"] = 1 then
+		q["tail"] <- null
+
+	q["size"] <- q["size"] - 1
+	output head["val"]
+
+
+q <- Queue()
+enqueue(q, 1)
+enqueue(q, 2)
+enqueue(q, 3)
+printLine(dequeue(q))
+printLine(dequeue(q))
+printLine(dequeue(q))

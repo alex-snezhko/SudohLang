@@ -15,18 +15,18 @@ procedure fibonacci <- n
     num1 <- 0
     num2 <- 1
     for i <- 1 to n do
-        printLine(n1)
-        printLine(n2)
+        printLine(num1)
 
         temp <- num1
         num1 <- num2
-        num2 <- num1 + num2
+        num2 <- temp + num2
 
 n <- number(input())
 fibonacci(n)
 ```
 
-Documentation for the Sudoh language can be found in **documentation.md**
+Documentation for the Sudoh language can be found in **documentation.md**, and more examples can be found in the
+**examples** directory
 
 
 ## Getting started with Sudoh

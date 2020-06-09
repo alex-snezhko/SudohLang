@@ -649,10 +649,10 @@ void Parser::parseTerm(ParsedType& t)
 	else if (token == "true" || token == "false") // check for boolean
 	{
 		// 'True' and 'False' will be macros
-		appendAndAdvance(token == "true" ? "True" : "False");
+		appendAndAdvance("var(" + token + ")");
 		t = ParsedType::boolean;
 	}
-	else if (token == "-")
+	else if (token == "-") // check for negative number
 	{
 		tokens.advance();
 		if (!std::regex_match(tokens.currToken(), NUMBER_RE))
@@ -669,7 +669,7 @@ void Parser::parseTerm(ParsedType& t)
 	}
 	else if (std::regex_match(token, STRING_RE)) // check for string
 	{
-		appendAndAdvance("var(" + token + ")");
+		appendAndAdvance("var(std::string(" + token + "))");
 		t = ParsedType::string;
 	}
 	else if (token == "null") // check for null value
@@ -1057,7 +1057,7 @@ void Parser::parseObjectEntry()
 
 	trans.appendToBuffer("{ ");
 
-	parseExpr();
+	parseExpr({ ParsedType::string });
 	if (tokens.currToken() != "<-")
 	{
 		throw SyntaxException("object entry must be of form <field> <- <value>");
